@@ -62,8 +62,7 @@ To validate the project without touching the database, use `dbt parse` and
 ## Warehouse
 
 The warehouse is a single DuckDB file, tracked in git at
-`duckdb/chalice_duckdb.duckdb`, configured through the `chalice_dbt` profile in
-`~/.dbt/profiles.yml`.
+`duckdb/chalice_duckdb.duckdb`, configured through the `chalice_dbt` profile.
 
 Point any DuckDB client at that file to browse the warehouse.
 

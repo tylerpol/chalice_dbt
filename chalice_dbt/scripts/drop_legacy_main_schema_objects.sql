@@ -6,8 +6,8 @@
 -- can be dropped. Seeds were always configured to `raw` and are unaffected.
 --
 -- Run this once against duckdb/chalice_duckdb.duckdb, then rebuild with
--- `dbt build`. DataGrip must be disconnected from the database first, or DuckDB
--- will refuse the write lock.
+-- `dbt build`. Any other client holding the file must disconnect first, or
+-- DuckDB will refuse the write lock.
 --
 -- Verify what is there before dropping:
 --     select schema_name, table_name from duckdb_tables()  where schema_name = 'main';

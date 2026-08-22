@@ -23,14 +23,12 @@ Running from the root fails with "No dbt_project.yml found". Alternatively pass
 
 ## Environment
 
-- The virtualenv is at `~/Desktop/dbt-env`. It is not on `PATH` by default; use
-  `~/Desktop/dbt-env/bin/dbt` and `~/Desktop/dbt-env/bin/sqlfluff` explicitly.
 - Adapter is **dbt-duckdb**; the warehouse is a single DuckDB file at
-  `duckdb/chalice_duckdb.duckdb`, referenced from `~/.dbt/profiles.yml`.
+  `duckdb/chalice_duckdb.duckdb`, referenced from the `chalice_dbt` profile.
 - **DuckDB allows only one read-write connection at a time.** If a dbt command
-  fails with `Could not set lock on file`, a GUI client (DataGrip) holds the
-  file — it must disconnect before dbt can run. Linting does not touch the
-  database and is unaffected.
+  fails with `Could not set lock on file`, another client holds the file and must
+  disconnect before dbt can run. Linting does not touch the database and is
+  unaffected.
 
 ## This project runs on DuckDB — write DuckDB SQL
 
