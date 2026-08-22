@@ -16,7 +16,11 @@ models/intermediate/
 - One yml file for the entire layer, named `__intermediate_models.yml`.
 - Models are named `int_<description>`, describing what the step *produces*
   rather than what source it came from.
-- Materialized as **views** (set in `dbt_project.yml`).
+- Materialized as **views** into the **`intermediate`** schema. Both the
+  materialization and `+schema: intermediate` are set in `dbt_project.yml`; the
+  `generate_schema_name` override makes the schema resolve to exactly
+  `intermediate`, with no target prefix. Nothing in this layer builds into
+  `main`.
 
 ## Modeling conventions
 

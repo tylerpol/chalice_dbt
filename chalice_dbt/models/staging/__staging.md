@@ -15,7 +15,10 @@ models/staging/
 
 - One yml file for the entire layer, named `__staging_models.yml`.
 - One staging model per source object, named `stg_<entity>`.
-- Materialized as **views** (set in `dbt_project.yml`).
+- Materialized as **views** into the **`staging`** schema. Both the
+  materialization and `+schema: staging` are set in `dbt_project.yml`; the
+  `generate_schema_name` override makes the schema resolve to exactly `staging`,
+  with no target prefix. Nothing in this layer builds into `main`.
 
 ## Modeling conventions
 

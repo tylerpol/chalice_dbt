@@ -1,4 +1,5 @@
-```
+<div align="center">
+<pre>
 ╭────────────────────────────────────────────╮
 │                                            │
 │      ████                        ████      │
@@ -31,7 +32,8 @@
 │           C H A L I C E   d b t            │
 │                                            │
 ╰────────────────────────────────────────────╯
-```
+</pre>
+</div>
 
 <div align="center">
 
@@ -43,14 +45,13 @@
 
 ## Getting started
 
-The virtualenv lives at `~/Desktop/dbt-env` and is not on `PATH` by default.
 Run dbt from **this directory** (`chalice_dbt/chalice_dbt/`), not the repo root:
 
 ```bash
-cd chalice_dbt                     # from the repo root
-~/Desktop/dbt-env/bin/dbt seed     # load CSV seeds into the raw schema
-~/Desktop/dbt-env/bin/dbt run      # build staging, intermediate, and marts
-~/Desktop/dbt-env/bin/dbt test     # run the test suite
+cd chalice_dbt      # from the repo root
+dbt seed            # load CSV seeds into the raw schema
+dbt run             # build staging, intermediate, and marts
+dbt test            # run the test suite
 ```
 
 To validate the project without touching the database, use `dbt parse` and
@@ -64,17 +65,28 @@ The warehouse is a single DuckDB file, tracked in git at
 `duckdb/chalice_duckdb.duckdb`, configured through the `chalice_dbt` profile in
 `~/.dbt/profiles.yml`.
 
-To connect from DataGrip: **Database** tool window → **+** → **Data Source** →
-**DuckDB**, and point *Path* at that file.
+Point any DuckDB client at that file to browse the warehouse.
 
-> [!IMPORTANT]
-> **DuckDB permits only one read-write connection at a time.** If dbt fails with
-> `Could not set lock on file`, disconnect the data source in DataGrip (or close
-> its console tabs) and re-run. Linting is unaffected.
+### Schema layout
+
+Every layer materializes into its own schema, configured with `+schema` in
+`dbt_project.yml`:
+
+| Schema | Contents | Materialization |
+| :--- | :--- | :--- |
+| `raw` | CSV seeds, loaded as-is | table |
+| `staging` | `stg_*` models | view |
+| `intermediate` | `int_*` models | view |
+| `marts` | `dim_*` / `fct_*` models | table |
 
 Custom schemas resolve to their exact name — the `generate_schema_name` override
-in `macros/` disables dbt's default `<target>_<custom>` prefixing. Seeds land in
-the `raw` schema.
+in `macros/` disables dbt's default `<target>_<custom>` prefixing, so these are
+literally `staging`, not `main_staging`.
+
+> [!NOTE]
+> Nothing should build into DuckDB's default `main` schema. Builds run before the
+> `+schema` configs existed left models there; `scripts/drop_legacy_main_schema_objects.sql`
+> cleans them up.
 
 ---
 
@@ -88,11 +100,12 @@ chalice_dbt/                      ── repo root
     ├── dbt_project.yml
     ├── .sqlfluff / .sqlfluffignore
     ├── macros/
+    ├── scripts/                  ── standalone maintenance SQL
     ├── seeds/                    ── CSV seeds → raw schema
     └── models/
-        ├── staging/              ── views
-        ├── intermediate/         ── views
-        └── marts/                ── tables
+        ├── staging/              ── views  → staging schema
+        ├── intermediate/         ── views  → intermediate schema
+        └── marts/                ── tables → marts schema
 ```
 
 ---
@@ -143,7 +156,7 @@ in `models/marts/docs/<model_name>.md`.
 ## Linting
 
 ```bash
-~/Desktop/dbt-env/bin/sqlfluff lint models/
+sqlfluff lint models/
 ```
 
 Dialect is `duckdb`, templater is `dbt`. Rule `ST06` is excluded because it

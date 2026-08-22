@@ -27,7 +27,10 @@ models/marts/
   model's name.
 - The yml sets `description: '{{ doc("<model_name>") }}'`, pointing at the doc
   block defined in `docs/<model_name>.md`.
-- Materialized as **tables** (set in `dbt_project.yml`).
+- Materialized as **tables** into the **`marts`** schema. Both the
+  materialization and `+schema: marts` are set in `dbt_project.yml`; the
+  `generate_schema_name` override makes the schema resolve to exactly `marts`,
+  with no target prefix. Nothing in this layer builds into `main`.
 
 ## Doc block requirements
 

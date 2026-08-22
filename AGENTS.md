@@ -106,8 +106,14 @@ These hold everywhere and are not layer-specific:
   lock — prefer them for checking your work.
 - **Do not run `dbt run`, `dbt build`, or `dbt seed` unless asked.** Building is
   the user's call; they run it themselves.
-- Custom schemas resolve to their exact name (no `<target>_<custom>` prefixing)
-  via the `generate_schema_name` override in `macros/`. Seeds land in `raw`.
+- **Every layer builds into its own schema**, set with `+schema` in
+  `dbt_project.yml`: seeds → `raw`, staging → `staging`, intermediate →
+  `intermediate`, marts → `marts`. Custom schemas resolve to their exact name (no
+  `<target>_<custom>` prefixing) via the `generate_schema_name` override in
+  `macros/`. **Nothing should build into DuckDB's default `main` schema** — if
+  models appear there, a `+schema` config is missing.
+- `scripts/` holds standalone maintenance SQL that is not part of the dbt DAG. It
+  is excluded from linting because the dbt templater cannot resolve it.
 - `.sqlfluff` and `.sqlfluffignore` require their leading dots to be discovered.
   `ST06` is excluded project-wide because it conflicts with the mart key-ordering
   convention; `macros/` is ignored because sqlfluff cannot lint macro definition
