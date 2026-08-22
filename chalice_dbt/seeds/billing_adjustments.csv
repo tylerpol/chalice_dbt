@@ -1,0 +1,26 @@
+campaign_id,billing_month,adjustment_usd,reason
+CMP-3001,2026-05,-132.44,makegood
+CMP-3001,2026-05,-1082.97,rebate
+CMP-3001,2026-06,-1611.62,discrepancy credit
+CMP-3003,2026-05,-2130.57,viewability credit
+CMP-3003,2026-06,-1419.35,rebate
+CMP-3003,2026-06,681.67,makegood
+CMP-3004,2026-05,546.07,rebate
+CMP-3004,2026-05,-1656.14,makegood
+CMP-3004,2026-06,-841.42,makegood
+CMP-3004,2026-06,1186.88,late fee
+CMP-3005,2026-05,-1014.13,discrepancy credit
+CMP-3005,2026-05,-715.21,rebate
+CMP-3006,2026-05,704.46,makegood
+CMP-3007,2026-06,265.66,rebate
+CMP-3007,2026-06,-29.66,rebate
+CMP-3008,2026-04,536.65,discrepancy credit
+CMP-3008,2026-04,-150.21,late fee
+CMP-3008,2026-05,-744.13,rebate
+CMP-3008,2026-05,-1738.64,makegood
+CMP-3008,2026-06,1128.06,late fee
+CMP-3008,2026-06,-134.85,rebate
+CMP-3009,2026-05,-1366.85,discrepancy credit
+CMP-3009,2026-06,338.23,rebate
+CMP-3010,2026-05,1216.01,rebate
+CMP-3010,2026-06,-525.4,late fee

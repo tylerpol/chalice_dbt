@@ -1,0 +1,21 @@
+version: 2
+
+models:
+  - name: dim_parent_advertisers
+    description: '{{ doc("dim_parent_advertisers") }}'
+    columns:
+      - name: parent_advertiser_key
+        description: Surrogate key for the parent advertiser, an md5 hash of parent_advertiser_id.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: parent_advertiser_id
+        description: Natural key of the parent advertiser from the source system.
+        data_type: varchar
+      - name: parent_advertiser_name
+        description: Display name of the parent advertiser, passed through raw from the source system.
+        data_type: varchar
+      - name: meta_refreshed_at
+        description: Timestamp at which this model was last rebuilt.
+        data_type: timestamp

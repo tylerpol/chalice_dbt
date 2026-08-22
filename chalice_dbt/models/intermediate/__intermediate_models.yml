@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: int_parent_advertisers
+    description: Deduplicated set of parent-level advertisers, derived from stg_advertisers where an advertiser is its own parent.
+    columns:
+      - name: parent_advertiser_id
+        description: Natural key of the parent advertiser.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: parent_advertiser_name
+        description: Display name of the parent advertiser.
+        data_type: varchar

@@ -1,0 +1,11 @@
+campaign_id,advertiser_id,campaign_name,market,timezone,start_date,end_date
+CMP-3001,ADV-1001,Northgate Q2 Auto Prospecting,US,America/New_York,2026-04-01,2026-06-30
+CMP-3002,ADV-1002,Northgate Q2 Retention,US,America/New_York,2026-04-01,2026-06-30
+CMP-3003,ADV-1003,Perreault Summer Snacks,US,America/Chicago,2026-04-01,2026-06-30
+CMP-3004,ADV-1004,Perreault NA Always On,US,America/Chicago,2026-04-01,2026-06-30
+CMP-3005,ADV-1005,Halden EMEA Launch,EMEA,Europe/London,2026-04-01,2026-06-30
+CMP-3006,ADV-1005,Halden APAC Launch,APAC,Asia/Tokyo,2026-04-01,2026-06-30
+CMP-3007,ADV-1006,Vero Open Enrollment Warmup,US,America/New_York,2026-04-01,2026-06-30
+CMP-3008,ADV-1007,Kestrel Q2 Acquisition,US,America/New_York,2026-04-01,2026-06-30
+CMP-3009,ADV-1007,Kestrel State Expansion,US,America/Denver,2026-04-01,2026-06-30
+CMP-3010,ADV-1003,Perreault Retail Media Test,US,America/Chicago,2026-04-01,2026-06-30

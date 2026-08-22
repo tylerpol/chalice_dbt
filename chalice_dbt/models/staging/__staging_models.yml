@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: stg_advertisers
+    description: Staging model for advertiser records, built on top of the advertisers seed with each source field explicitly typed.
+    columns:
+      - name: advertiser_id
+        description: Natural key for the advertiser, as issued by the source system.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: advertiser_name
+        description: Display name of the advertiser as recorded by the source system.
+        data_type: varchar
+      - name: parent_advertiser_id
+        description: Natural key of the parent advertiser this advertiser rolls up to. Equal to advertiser_id for parent-level advertisers.
+        data_type: varchar
+        tests:
+          - not_null
