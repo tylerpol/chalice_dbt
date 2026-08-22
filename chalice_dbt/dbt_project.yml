@@ -26,11 +26,23 @@ clean-targets:         # directories to be removed by `dbt clean`
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models
 
-# In this example config, we tell dbt to build all models in the example/
-# directory as views. These settings can be overridden in the individual model
-# files using the `{{ config(...) }}` macro.
+# Each layer materializes into its own schema. The generate_schema_name override
+# in macros/ makes these resolve to the exact name given, with no target prefix.
 models:
   chalice_dbt:
-    # Config indicated by + and applies to all files under models/example/
-    example:
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
       +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts
+
+seeds:
+  chalice_dbt:
+    +schema: raw

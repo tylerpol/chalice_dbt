@@ -1,0 +1,103 @@
+[sqlfluff]
+# Core SQLFluff settings
+dialect = duckdb
+templater = dbt
+max_line_length = 120
+large_file_skip_byte_limit = 0
+# ST06 is disabled because it conflicts with our mart key ordering convention:
+# surrogate _key fields are hashed in the final CTE and must lead the select
+exclude_rules = ST06
+
+[sqlfluff:templater:dbt]
+# Using default project_dir (current directory) and profiles_dir (~/.dbt)
+
+[sqlfluff:templater]
+# Unwraps queries inside Jinja blocks to make linting more consistent
+unwrap_wrapped_queries = true
+
+[sqlfluff:indentation]
+# Indentation behavior for joins, using/on clauses, CTEs, and tabs
+indented_joins = false
+indented_using_on = true
+template_blocks_indent = false
+tab_space_size = 4
+indented_ctes = false
+
+[sqlfluff:rules:capitalisation.keywords]
+# Enforces lower-case SQL keywords (select, from, where, etc.)
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.identifiers]
+# Enforces lower-case identifiers (table/column names)
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.functions]
+# Enforces lower-case function names (cast, coalesce, etc.)
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.literals]
+# Enforces lower-case literals (true/false/null)
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.types]
+# Enforces lower-case data types (varchar, bigint, etc.)
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:aliasing.table]
+# Requires explicit table aliases
+aliasing = explicit
+
+[sqlfluff:rules:aliasing.column]
+# Requires explicit column aliases
+aliasing = explicit
+
+[sqlfluff:rules:layout.long_lines]
+# Enforces max line length (with comment handling)
+max_line_length = 120
+ignore_comment_lines = false
+ignore_comment_clauses = false
+
+[sqlfluff:layout:type:comma]
+# Enforces trailing commas in lists
+line_position = trailing
+
+[sqlfluff:layout:type:binary_operator]
+# Forces binary operators (AND, OR, +, etc.) to start the line
+line_position = leading
+
+[sqlfluff:layout:type:comparison_operator]
+# Forces comparison operators (=, <, >, etc.) to start the line
+line_position = leading
+
+[sqlfluff:rules:references.consistent]
+# Enforces unqualified references in single-table queries
+single_table_references = unqualified
+
+[sqlfluff:rules:ambiguous.join]
+# Requires fully qualified join types (e.g., INNER JOIN)
+fully_qualify_join_types = inner
+
+[sqlfluff:rules:references.from]
+# Enforces proper FROM clause references (no unused or invalid refs)
+force_enable = true
+
+[sqlfluff:rules:layout.select_targets]
+# Controls wildcard usage and SELECT target layout
+wildcard_policy = single
+# Add this to prevent reordering:
+
+[sqlfluff:rules:aliasing.expression]
+# Prevent reordering of aliased expressions
+allow_scalar = true
+
+[sqlfluff:rules:convention.select_trailing_comma]
+# Disallows trailing commas after the last SELECT target
+select_clause_trailing_comma = forbid
+
+[sqlfluff:rules:ambiguous.column_references]
+# Controls whether GROUP BY / ORDER BY use positions or names
+group_by_and_order_by_style = implicit
+
+[sqlfluff:rules]
+# Disallows implicit aliases for expressions unless explicitly allowed
+allow_scalar = false

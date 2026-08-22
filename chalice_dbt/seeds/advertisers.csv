@@ -1,0 +1,8 @@
+advertiser_id,advertiser_name,parent_advertiser_id
+ADV-1001,Northgate Insurance,ADV-1001
+ADV-1002,northgate insurance ,ADV-1001
+ADV-1003,Perreault Foods,ADV-1003
+ADV-1004,Perreault Foods NA,ADV-1003
+ADV-1005,Halden Mobility,ADV-1005
+ADV-1006,Vero Health Group,ADV-1006
+ADV-1007,Kestrel Sportsbook,ADV-1007

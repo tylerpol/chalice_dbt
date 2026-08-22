@@ -2,3 +2,6 @@ logs/
 target/
 dbt_packages/
 .env
+
+*.duckdb
+*.duckdb.wal
