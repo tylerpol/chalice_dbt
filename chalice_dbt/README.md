@@ -45,7 +45,9 @@
 
 ## Getting started
 
-Run dbt from **this directory** (`chalice_dbt/chalice_dbt/`), not the repo root:
+The warehouse is not stored in the repository — it is built from the tracked CSV
+seeds. On a fresh clone, run dbt from **this directory**
+(`chalice_dbt/chalice_dbt/`), not the repo root:
 
 ```bash
 cd chalice_dbt      # from the repo root
@@ -54,6 +56,9 @@ dbt run             # build staging, intermediate, and marts
 dbt test            # run the test suite
 ```
 
+`dbt build` runs all three in dependency order. The first run creates
+`duckdb/chalice_duckdb.duckdb`.
+
 To validate the project without touching the database, use `dbt parse` and
 `dbt list`.
 
@@ -61,10 +66,14 @@ To validate the project without touching the database, use `dbt parse` and
 
 ## Warehouse
 
-The warehouse is a single DuckDB file, tracked in git at
-`duckdb/chalice_duckdb.duckdb`, configured through the `chalice_dbt` profile.
+The warehouse is a single DuckDB file at `duckdb/chalice_duckdb.duckdb`,
+configured through the `chalice_dbt` profile.
 
-Point any DuckDB client at that file to browse the warehouse.
+It is **git-ignored** — a build artifact, not source. The seeds under
+`chalice_dbt/seeds/` are the source of truth, and `dbt build` regenerates the
+database from them deterministically. Expect it to be absent on a fresh clone.
+
+Once built, point any DuckDB client at that file to browse the warehouse.
 
 ### Schema layout
 
@@ -94,7 +103,7 @@ literally `staging`, not `main_staging`.
 ```
 chalice_dbt/                      ── repo root
 ├── AGENTS.md                     ── conventions for coding agents
-├── duckdb/                       ── the DuckDB database file
+├── duckdb/                       ── the database, built by dbt (git-ignored)
 └── chalice_dbt/                  ── the dbt project
     ├── dbt_project.yml
     ├── .sqlfluff / .sqlfluffignore

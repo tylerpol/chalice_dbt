@@ -9,7 +9,7 @@ The dbt project is nested one level below the repo root:
 ```
 chalice_dbt/            # repo root
 ├── AGENTS.md           # this file
-├── duckdb/             # the DuckDB database file, tracked in git
+├── duckdb/             # the database, built by dbt (git-ignored)
 └── chalice_dbt/        # <- the dbt project; run all dbt commands from here
     ├── dbt_project.yml
     ├── models/
@@ -25,6 +25,10 @@ Running from the root fails with "No dbt_project.yml found". Alternatively pass
 
 - Adapter is **dbt-duckdb**; the warehouse is a single DuckDB file at
   `duckdb/chalice_duckdb.duckdb`, referenced from the `chalice_dbt` profile.
+- **The database is git-ignored** — it is a build artifact regenerated from the
+  tracked CSV seeds. It may be absent (a fresh clone) or stale; if a query needs
+  data that is not there, run `dbt build` rather than assuming the models are
+  broken. Never commit the `.duckdb` file.
 - **DuckDB allows only one read-write connection at a time.** If a dbt command
   fails with `Could not set lock on file`, another client holds the file and must
   disconnect before dbt can run. Linting does not touch the database and is
