@@ -8,7 +8,7 @@ more.
 
 ```
 models/staging/
-├── __staging.md              # this file
+├── __staging_layer.md              # this file
 ├── __staging_models.yml      # one yml for the whole layer
 └── stg_<entity>.sql          # one model per source object
 ```
@@ -49,7 +49,7 @@ presents without changing what it means:
 - string parsing — `regexp_*`, `replace`, trimming, casing
 
 If a transformation changes *which rows exist* or *what the data means*, it does
-not belong here. Push it down to the [intermediate layer](../intermediate/__intermediate.md).
+not belong here. Push it down to the [intermediate layer](../intermediate/__intermediate_layer.md).
 
 ## Testing norms
 
@@ -69,6 +69,6 @@ mirrors column order in the model.
 
 ## Downstream
 
-Staging models feed [intermediate](../intermediate/__intermediate.md) models, and
-may be referenced directly by [mart](../marts/__marts.md) models when no
+Staging models feed [intermediate](../intermediate/__intermediate_layer.md) models, and
+may be referenced directly by [mart](../marts/__mart_layer.md) models when no
 intermediate step is warranted.

@@ -57,7 +57,7 @@ dbt test            # run the test suite
 ```
 
 `dbt build` runs all three in dependency order. The first run creates
-`duckdb/chalice_duckdb.duckdb`.
+`duckdb/chalice.duckdb`.
 
 To validate the project without touching the database, use `dbt parse` and
 `dbt list`.
@@ -66,7 +66,7 @@ To validate the project without touching the database, use `dbt parse` and
 
 ## Warehouse
 
-The warehouse is a single DuckDB file at `duckdb/chalice_duckdb.duckdb`,
+The warehouse is a single DuckDB file at `duckdb/chalice.duckdb`,
 configured through the `chalice_dbt` profile.
 
 It is **git-ignored** — a build artifact, not source. The seeds under
@@ -85,16 +85,15 @@ Every layer materializes into its own schema, configured with `+schema` in
 | `raw` | CSV seeds, loaded as-is | table |
 | `staging` | `stg_*` models | view |
 | `intermediate` | `int_*` models | view |
-| `marts` | `dim_*` / `fct_*` models | table |
+| `mart` | `dim_*` / `fct_*` models | table |
 
 Custom schemas resolve to their exact name — the `generate_schema_name` override
 in `macros/` disables dbt's default `<target>_<custom>` prefixing, so these are
 literally `staging`, not `main_staging`.
 
 > [!NOTE]
-> Nothing should build into DuckDB's default `main` schema. Builds run before the
-> `+schema` configs existed left models there; `scripts/drop_legacy_main_schema_objects.sql`
-> cleans them up.
+> Nothing should build into DuckDB's default `main` schema. If models appear
+> there, a `+schema` config is missing.
 
 ---
 
@@ -108,27 +107,26 @@ chalice_dbt/                      ── repo root
     ├── dbt_project.yml
     ├── .sqlfluff / .sqlfluffignore
     ├── macros/
-    ├── scripts/                  ── standalone maintenance SQL
     ├── seeds/                    ── CSV seeds → raw schema
     └── models/
         ├── staging/              ── views  → staging schema
         ├── intermediate/         ── views  → intermediate schema
-        └── marts/                ── tables → marts schema
+        └── marts/                ── tables → mart schema
 ```
 
 ---
 
 ## Modeling layers
 
-Each layer's rules are documented in a `__<layer_name>.md` file inside the
+Each layer's rules are documented in a `__<layer_name>_layer.md` file inside the
 layer's directory. **Those files are the source of truth** — this README only
 summarizes them.
 
 | Layer | Purpose | Docs |
 | :--- | :--- | :--- |
-| **Staging** | Cosmetic reshaping only — casts, renames, JSON/regex parsing. No joins, unions, or filtering. | [`__staging.md`](models/staging/__staging.md) |
-| **Intermediate** | All real transformation — joins, unions, filtering, aggregation, grain changes. Optional when a mart can read staging directly. | [`__intermediate.md`](models/intermediate/__intermediate.md) |
-| **Marts** | Relational fact and dimension models. Assembly, uniqueness, and key hashing only. | [`__marts.md`](models/marts/__marts.md) |
+| **Staging** | Cosmetic reshaping only — casts, renames, JSON/regex parsing. No joins, unions, or filtering. | [`__staging_layer.md`](models/staging/__staging_layer.md) |
+| **Intermediate** | All real transformation — joins, unions, filtering, aggregation, grain changes. Optional when a mart can read staging directly. | [`__intermediate_layer.md`](models/intermediate/__intermediate_layer.md) |
+| **Marts** | Relational fact and dimension models. Assembly, uniqueness, and key hashing only. | [`__mart_layer.md`](models/marts/__mart_layer.md) |
 
 Cross-cutting conventions:
 

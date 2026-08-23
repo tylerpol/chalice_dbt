@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: fct_billing_adjustments
+    description: '{{ doc("fct_billing_adjustments") }}'
+    columns:
+      - name: billing_adjustment_key
+        description: >
+          Surrogate key for the adjustment, an md5 hash of campaign_id,
+          billing_month, adjustment_usd, and reason. The source provides no
+          natural key and no smaller combination is unique.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: campaign_id
+        description: Natural key of the campaign the adjustment applies to. First component of billing_adjustment_key.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: campaign_key
+        description: Foreign key to dim_campaigns, an md5 hash of campaign_id.
+        data_type: varchar
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_campaigns')
+                field: campaign_key
+      - name: billing_month
+        description: Billing month (YYYY-MM) the adjustment applies to. Second component of billing_adjustment_key.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: adjustment_usd
+        description: Adjustment amount in USD. Sign is not implied by reason; use this value's sign.
+        data_type: decimal(18,2)
+        tests:
+          - not_null
+      - name: reason
+        description: Free-text reason the adjustment was raised. Not a controlled vocabulary.
+        data_type: varchar
+      - name: meta_refreshed_at
+        description: Timestamp at which this model was last rebuilt.
+        data_type: timestamp

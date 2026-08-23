@@ -13,3 +13,73 @@ models:
       - name: parent_advertiser_name
         description: Display name of the parent advertiser.
         data_type: varchar
+
+  - name: int_delivery_daily_deduplicated
+    description: >
+      Daily delivery with exact duplicate source rows collapsed, establishing a
+      true one-row-per-line-item-per-day grain. The source contains 24 rows that
+      repeat another row byte for byte; left in place they would double-count
+      impressions, clicks, and media cost.
+    columns:
+      - name: line_item_id
+        description: Natural key of the line item that delivered.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: event_date_local
+        description: Local calendar date of delivery, in the campaign's timezone.
+        data_type: date
+        tests:
+          - not_null
+      - name: impressions
+        description: Impressions delivered on the event date.
+        data_type: bigint
+      - name: clicks
+        description: Clicks recorded on the event date.
+        data_type: bigint
+      - name: media_cost_usd
+        description: Media cost in USD attributed to the event date.
+        data_type: decimal(18,2)
+      - name: billing_month
+        description: Billing month (YYYY-MM) the source assigned to the delivery.
+        data_type: varchar
+
+  - name: int_line_items_normalized
+    description: >
+      Line items with the mixed-unit discount_pct column resolved to a single
+      fractional discount_rate. The source records some discounts as fractions
+      (0.1) and others as whole percentage points (12.0) in the same column.
+    columns:
+      - name: line_item_id
+        description: Natural key for the line item.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: campaign_id
+        description: Natural key of the campaign this line item belongs to. Null where the source did not associate one.
+        data_type: varchar
+      - name: pricing_model
+        description: How the line item is priced -- CPM or FLAT_FEE.
+        data_type: varchar
+      - name: rate
+        description: Contracted rate, per thousand impressions for CPM or a flat amount for FLAT_FEE.
+        data_type: decimal(18,4)
+      - name: contracted_impressions
+        description: Impressions the line item is contracted to deliver. Null where unspecified.
+        data_type: bigint
+      - name: discount_pct
+        description: Raw discount as recorded by the source, retained for traceability. Mixed units -- do not use for calculation.
+        data_type: decimal(18,4)
+      - name: discount_rate
+        description: >
+          Discount normalized to a fraction of 1. Values above 1 in the source are
+          treated as percentage points and divided by 100. Null where no discount
+          was recorded.
+        data_type: decimal(18,4)
+      - name: flight_start
+        description: First day the line item is scheduled to deliver.
+        data_type: date
+      - name: flight_end
+        description: Last day the line item is scheduled to deliver.
+        data_type: date

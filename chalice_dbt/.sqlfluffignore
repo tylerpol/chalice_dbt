@@ -4,5 +4,3 @@ logs/
 *.md
 # sqlfluff cannot lint macro definition files -- it skips them with a warning
 macros/
-# standalone maintenance SQL, not dbt models -- the dbt templater cannot resolve them
-scripts/
