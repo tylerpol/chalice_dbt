@@ -1,0 +1,58 @@
+version: 2
+
+models:
+  - name: dim_line_items
+    description: '{{ doc("dim_line_items") }}'
+    columns:
+      - name: line_item_key
+        description: Surrogate key for the line item, an md5 hash of line_item_id.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: line_item_id
+        description: Natural key of the line item from the source system.
+        data_type: varchar
+      - name: campaign_key
+        description: >
+          Foreign key to dim_campaigns, an md5 hash of campaign_id. Null for line
+          items the source did not associate with a campaign, so the not_null test
+          runs at warn severity.
+        data_type: varchar
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              arguments:
+                to: ref('dim_campaigns')
+                field: campaign_key
+      - name: campaign_id
+        description: Natural key of the campaign this line item belongs to. Null where the source did not associate one.
+        data_type: varchar
+      - name: pricing_model
+        description: How the line item is priced. CPM bills per thousand impressions; FLAT_FEE bills a fixed amount.
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['CPM', 'FLAT_FEE']
+      - name: rate
+        description: Contracted rate. Dollars per thousand impressions when pricing_model is CPM, otherwise a flat dollar amount.
+        data_type: decimal(18,4)
+      - name: contracted_impressions
+        description: Impressions the line item is contracted to deliver. Null means no volume commitment, not zero.
+        data_type: bigint
+      - name: discount_rate
+        description: Discount normalized to a fraction of 1. Null where no discount was recorded.
+        data_type: decimal(18,4)
+      - name: flight_start
+        description: First day the line item is scheduled to deliver.
+        data_type: date
+      - name: flight_end
+        description: Last day the line item is scheduled to deliver.
+        data_type: date
+      - name: meta_refreshed_at
+        description: Timestamp at which this model was last rebuilt.
+        data_type: timestamp

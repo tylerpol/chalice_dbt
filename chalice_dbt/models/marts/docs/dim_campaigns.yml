@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: dim_campaigns
+    description: '{{ doc("dim_campaigns") }}'
+    columns:
+      - name: campaign_key
+        description: Surrogate key for the campaign, an md5 hash of campaign_id.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: campaign_id
+        description: Natural key of the campaign from the source system.
+        data_type: varchar
+      - name: advertiser_key
+        description: Foreign key to dim_advertisers, an md5 hash of advertiser_id.
+        data_type: varchar
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_advertisers')
+                field: advertiser_key
+      - name: advertiser_id
+        description: Natural key of the advertiser that owns this campaign.
+        data_type: varchar
+      - name: campaign_name
+        description: Display name of the campaign, passed through raw from the source system.
+        data_type: varchar
+      - name: market
+        description: Geographic market the campaign runs in.
+        data_type: varchar
+      - name: timezone
+        description: IANA timezone the campaign's local event dates are expressed in.
+        data_type: varchar
+      - name: start_date
+        description: First day of the campaign flight.
+        data_type: date
+      - name: end_date
+        description: Last day of the campaign flight.
+        data_type: date
+      - name: meta_refreshed_at
+        description: Timestamp at which this model was last rebuilt.
+        data_type: timestamp

@@ -41,7 +41,7 @@ models:
       +schema: intermediate
     marts:
       +materialized: table
-      +schema: marts
+      +schema: mart
 
 seeds:
   chalice_dbt:

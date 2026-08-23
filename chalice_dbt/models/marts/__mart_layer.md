@@ -6,14 +6,14 @@ downstream consumers query.
 
 ## Folder structure
 
-Unlike [staging](../staging/__staging.md) and
-[intermediate](../intermediate/__intermediate.md), marts do **not** share one
+Unlike [staging](../staging/__staging_layer.md) and
+[intermediate](../intermediate/__intermediate_layer.md), marts do **not** share one
 monolithic yml. Documentation is broken out per model, and each model's
 description is a doc block held in its own markdown file.
 
 ```
 models/marts/
-├── __marts.md                    # this file
+├── __mart_layer.md                    # this file
 ├── dim_<entity>.sql              # one file per model
 ├── dim_<entity>.yml              # per-model yml, named after the model
 ├── fct_<entity>.sql
@@ -27,10 +27,11 @@ models/marts/
   model's name.
 - The yml sets `description: '{{ doc("<model_name>") }}'`, pointing at the doc
   block defined in `docs/<model_name>.md`.
-- Materialized as **tables** into the **`marts`** schema. Both the
-  materialization and `+schema: marts` are set in `dbt_project.yml`; the
-  `generate_schema_name` override makes the schema resolve to exactly `marts`,
-  with no target prefix. Nothing in this layer builds into `main`.
+- Materialized as **tables** into the **`mart`** schema — singular, even though
+  the directory is `marts`. Both the materialization and `+schema: mart` are set
+  in `dbt_project.yml`; the `generate_schema_name` override makes the schema
+  resolve to exactly `mart`, with no target prefix. Nothing in this layer builds
+  into `main`.
 
 ## Doc block requirements
 
@@ -56,8 +57,16 @@ Each `docs/<model_name>.md` wraps its content in
   exposes `advertiser_key`.
 - **Column order:** primary key first, immediately followed by the native id that
   was hashed, then each foreign key followed by its native id, then all remaining
-  attributes. If a surrogate key is composed of multiple ids, those component ids
-  follow the derived `_key` field sequentially.
+  attributes.
+
+  When the primary key is a surrogate hashed from more than one column, **only
+  actual ids follow it** — non-id components (dates, months, amounts) are not part
+  of that id block and sit with the other attributes instead. Foreign keys come
+  next, each beside its native id.
+
+  `fct_delivery_daily` hashes `line_item_id` and `event_date_local`, so the order
+  runs `delivery_key`, `line_item_id`, `line_item_key`, then `event_date_local`
+  with the measures — the date composes the key but is not an id.
 - Every mart carries `meta_refreshed_at`, stamped in the same `final` CTE.
 - Hashing happens **inline in `final`** — no separate `hashed` CTE.
 

@@ -1,0 +1,57 @@
+version: 2
+
+models:
+  - name: fct_delivery_daily
+    description: '{{ doc("fct_delivery_daily") }}'
+    columns:
+      - name: delivery_key
+        description: Surrogate key for the delivery record, an md5 hash of line_item_id and event_date_local.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: line_item_id
+        description: Natural key of the line item that delivered. First component of delivery_key.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: line_item_key
+        description: >
+          Foreign key to dim_line_items, an md5 hash of line_item_id. 20 rows
+          reference a line item that does not exist in the dimension, so the
+          relationships test runs at warn severity rather than dropping the spend.
+        data_type: varchar
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_line_items')
+                field: line_item_key
+              config:
+                severity: warn
+      - name: event_date_local
+        description: Local calendar date of delivery, in the campaign's timezone. Second component of delivery_key.
+        data_type: date
+        tests:
+          - not_null
+      - name: impressions
+        description: Impressions delivered on the event date. Contains negative values in the source; not clamped.
+        data_type: bigint
+        tests:
+          - not_null
+      - name: clicks
+        description: Clicks recorded on the event date. Can exceed impressions in the source; not clamped.
+        data_type: bigint
+        tests:
+          - not_null
+      - name: media_cost_usd
+        description: Media cost in USD attributed to the event date. Excludes billing adjustments.
+        data_type: decimal(18,2)
+        tests:
+          - not_null
+      - name: billing_month
+        description: Billing month (YYYY-MM) the source assigned to the delivery. Does not always match the month of event_date_local.
+        data_type: varchar
+      - name: meta_refreshed_at
+        description: Timestamp at which this model was last rebuilt.
+        data_type: timestamp

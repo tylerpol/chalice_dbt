@@ -24,7 +24,7 @@ Running from the root fails with "No dbt_project.yml found". Alternatively pass
 ## Environment
 
 - Adapter is **dbt-duckdb**; the warehouse is a single DuckDB file at
-  `duckdb/chalice_duckdb.duckdb`, referenced from the `chalice_dbt` profile.
+  `duckdb/chalice.duckdb`, referenced from the `chalice_dbt` profile.
 - **The database is git-ignored** — it is a build artifact regenerated from the
   tracked CSV seeds. It may be absent (a fresh clone) or stale; if a query needs
   data that is not there, run `dbt build` rather than assuming the models are
@@ -70,16 +70,17 @@ for that layer:
 
 | Layer | Read this first |
 | --- | --- |
-| Staging | `chalice_dbt/models/staging/__staging.md` |
-| Intermediate | `chalice_dbt/models/intermediate/__intermediate.md` |
-| Marts | `chalice_dbt/models/marts/__marts.md` |
+| Staging | `chalice_dbt/models/staging/__staging_layer.md` |
+| Intermediate | `chalice_dbt/models/intermediate/__intermediate_layer.md` |
+| Marts | `chalice_dbt/models/marts/__mart_layer.md` |
 
 Each layer doc is authoritative for that layer's folder structure, naming,
 allowed transformations, documentation requirements, and testing norms. When a
 convention changes, update the layer doc — it is the source of truth, and this
 file deliberately does not duplicate it.
 
-The layer docs are named `__<layer_name>.md` and live in the layer's directory.
+The layer docs are named `__<layer_name>_layer.md` and live in the layer's
+directory.
 
 ## Project-wide conventions
 
@@ -110,12 +111,10 @@ These hold everywhere and are not layer-specific:
   the user's call; they run it themselves.
 - **Every layer builds into its own schema**, set with `+schema` in
   `dbt_project.yml`: seeds → `raw`, staging → `staging`, intermediate →
-  `intermediate`, marts → `marts`. Custom schemas resolve to their exact name (no
+  `intermediate`, marts → `mart` (singular). Custom schemas resolve to their exact name (no
   `<target>_<custom>` prefixing) via the `generate_schema_name` override in
   `macros/`. **Nothing should build into DuckDB's default `main` schema** — if
   models appear there, a `+schema` config is missing.
-- `scripts/` holds standalone maintenance SQL that is not part of the dbt DAG. It
-  is excluded from linting because the dbt templater cannot resolve it.
 - `.sqlfluff` and `.sqlfluffignore` require their leading dots to be discovered.
   `ST06` is excluded project-wide because it conflicts with the mart key-ordering
   convention; `macros/` is ignored because sqlfluff cannot lint macro definition

@@ -1,14 +1,14 @@
 # Intermediate Layer
 
 The intermediate layer is where the real work happens. It sits between
-[staging](../staging/__staging.md) and [marts](../marts/__marts.md) and absorbs
+[staging](../staging/__staging_layer.md) and [marts](../marts/__mart_layer.md) and absorbs
 all transformation complexity so that mart models stay thin.
 
 ## Folder structure
 
 ```
 models/intermediate/
-├── __intermediate.md             # this file
+├── __intermediate_layer.md             # this file
 ├── __intermediate_models.yml     # one yml for the whole layer
 └── int_<description>.sql         # one model per transformation step
 ```
@@ -43,7 +43,7 @@ forbidden from doing:
 - fanning out or collapsing records
 
 **Intermediate must not hash surrogate keys.** All key hashing happens in the
-mart layer — see [marts](../marts/__marts.md).
+mart layer — see [marts](../marts/__mart_layer.md).
 
 ## When to use an intermediate model
 

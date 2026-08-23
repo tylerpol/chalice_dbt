@@ -18,3 +18,135 @@ models:
         data_type: varchar
         tests:
           - not_null
+
+  - name: stg_campaigns
+    description: Staging model for campaigns, with each source field explicitly typed. One row per campaign.
+    columns:
+      - name: campaign_id
+        description: Natural key for the campaign, as issued by the source system.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: advertiser_id
+        description: Natural key of the advertiser this campaign belongs to.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: campaign_name
+        description: Display name of the campaign as recorded by the source system.
+        data_type: varchar
+      - name: market
+        description: Geographic market the campaign runs in.
+        data_type: varchar
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['US', 'EMEA', 'APAC']
+      - name: timezone
+        description: IANA timezone the campaign's local event dates are expressed in.
+        data_type: varchar
+      - name: start_date
+        description: First day of the campaign flight.
+        data_type: date
+      - name: end_date
+        description: Last day of the campaign flight.
+        data_type: date
+
+  - name: stg_line_items
+    description: Staging model for line items, with each source field explicitly typed. One row per line item.
+    columns:
+      - name: line_item_id
+        description: Natural key for the line item, as issued by the source system.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: campaign_id
+        description: Natural key of the campaign this line item belongs to. Null for line items the source did not associate with a campaign.
+        data_type: varchar
+      - name: pricing_model
+        description: How the line item is priced. CPM bills per thousand impressions; FLAT_FEE bills a fixed amount.
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['CPM', 'FLAT_FEE']
+      - name: rate
+        description: Contracted rate. Dollars per thousand impressions when pricing_model is CPM, otherwise a flat dollar amount.
+        data_type: decimal(18,4)
+      - name: contracted_impressions
+        description: Impressions the line item is contracted to deliver. Null where the contract does not specify a volume.
+        data_type: bigint
+      - name: discount_pct
+        description: >
+          Raw discount as recorded by the source. Carries mixed units -- some rows
+          are fractions and others are whole percentage points. Use discount_rate
+          from int_line_items_normalized instead of this column.
+        data_type: decimal(18,4)
+      - name: flight_start
+        description: First day the line item is scheduled to deliver.
+        data_type: date
+      - name: flight_end
+        description: Last day the line item is scheduled to deliver.
+        data_type: date
+
+  - name: stg_delivery_daily
+    description: >
+      Staging model for daily delivery, with each source field explicitly typed.
+      Intended grain is one row per line item per local event date, but the source
+      contains exact duplicate rows -- see int_delivery_daily_deduplicated.
+    columns:
+      - name: line_item_id
+        description: Natural key of the line item that delivered.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: event_date_local
+        description: Local calendar date of delivery, in the campaign's timezone.
+        data_type: date
+        tests:
+          - not_null
+      - name: impressions
+        description: Impressions delivered on the event date.
+        data_type: bigint
+        tests:
+          - not_null
+      - name: clicks
+        description: Clicks recorded on the event date.
+        data_type: bigint
+        tests:
+          - not_null
+      - name: media_cost_usd
+        description: Media cost in USD attributed to the event date.
+        data_type: decimal(18,2)
+        tests:
+          - not_null
+      - name: billing_month
+        description: Billing month (YYYY-MM) the source assigned to the delivery. Does not always match the month of event_date_local.
+        data_type: varchar
+
+  - name: stg_billing_adjustments
+    description: >
+      Staging model for billing adjustments, with each source field explicitly
+      typed. One row per adjustment; the source provides no natural key.
+    columns:
+      - name: campaign_id
+        description: Natural key of the campaign the adjustment applies to.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: billing_month
+        description: Billing month (YYYY-MM) the adjustment applies to.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: adjustment_usd
+        description: Adjustment amount in USD. Sign is not implied by reason -- credits and fees both appear positive and negative.
+        data_type: decimal(18,2)
+        tests:
+          - not_null
+      - name: reason
+        description: Free-text reason the adjustment was raised.
+        data_type: varchar
