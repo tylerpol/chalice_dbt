@@ -83,3 +83,162 @@ models:
       - name: flight_end
         description: Last day the line item is scheduled to deliver.
         data_type: date
+      - name: pacing_as_of_date
+        description: Date the elapsed and expected columns are evaluated at. Fixed at 2026-06-30.
+        data_type: date
+      - name: flight_days
+        description: Length of the flight in days, inclusive of both endpoints.
+        data_type: bigint
+      - name: elapsed_days
+        description: Days of the flight elapsed at the as-of date, floored at 0.
+        data_type: bigint
+      - name: elapsed_share
+        description: elapsed_days / flight_days, capped at 1.
+        data_type: decimal(18,10)
+      - name: expected_impressions_to_date
+        description: Contract pro-rated to the elapsed flight. Null where there is no impression commitment.
+        data_type: bigint
+      - name: delivered_impressions_to_date
+        description: Impressions delivered on or before the as-of date.
+        data_type: bigint
+      - name: pacing_ratio
+        description: Delivered over expected. Null where there is no impression commitment.
+        data_type: decimal(18,6)
+      - name: shortfall_to_date_impressions
+        description: Impressions short of what the contract expects by the as-of date.
+        data_type: bigint
+      - name: shortfall_full_contract_impressions
+        description: Impressions short of the whole commitment.
+        data_type: bigint
+      - name: revenue_at_risk_usd
+        description: Revenue never earned if the full-contract shortfall is not made up, net of discount.
+        data_type: decimal(18,6)
+
+  - name: int_delivery_daily_revenue
+    description: >
+      Delivery with revenue recognised at the daily grain. CPM revenue is earned
+      by the day's impressions; flat fee revenue is the monthly rate allocated
+      evenly across the month's flight days, so summing a month reproduces the
+      contracted rate. Keeps the mart at the lowest grain the data supports.
+    columns:
+      - name: line_item_id
+        description: Natural key of the line item that delivered.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: campaign_id
+        description: Natural key of the campaign. Null where the source did not associate one.
+        data_type: varchar
+      - name: advertiser_id
+        description: Natural key of the advertiser. Null where the line item has no campaign.
+        data_type: varchar
+      - name: parent_advertiser_id
+        description: Natural key of the parent advertiser -- the brand. Null where the line item has no campaign.
+        data_type: varchar
+      - name: event_date_local
+        description: Local calendar date of delivery.
+        data_type: date
+        tests:
+          - not_null
+      - name: reporting_month
+        description: Month delivery occurred in, as YYYY-MM. Derived from event_date_local, not billing_month.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: impressions
+        description: Impressions delivered. Summed as recorded; the source contains negative corrections.
+        data_type: bigint
+      - name: clicks
+        description: Clicks recorded.
+        data_type: bigint
+      - name: media_cost_usd
+        description: Delivered media cost. This is cost, not revenue.
+        data_type: decimal(18,2)
+      - name: billing_month
+        description: Month the source assigned for billing. Retained for traceability; not used for recognition.
+        data_type: varchar
+      - name: pricing_model
+        description: CPM or FLAT_FEE. Null where the line item has no pricing terms.
+        data_type: varchar
+      - name: flight_days_in_month
+        description: >
+          Flight days the line item has in this row's calendar month -- the
+          denominator for flat fee allocation.
+        data_type: bigint
+      - name: revenue_basis
+        description: CPM_DELIVERED where the day earned the revenue, FLAT_FEE_ALLOCATED where it was spread.
+        data_type: varchar
+      - name: gross_revenue_usd
+        description: Revenue before discount, to six decimal places.
+        data_type: decimal(18,6)
+      - name: discount_rate
+        description: Discount as a fraction of 1, zero where the line item has none.
+        data_type: decimal(18,6)
+        tests:
+          - not_null
+      - name: discount_usd
+        description: Discount taken off gross revenue.
+        data_type: decimal(18,6)
+      - name: net_revenue_usd
+        description: Gross less discount, by subtraction so the columns always reconcile.
+        data_type: decimal(18,6)
+
+  - name: int_advertisers_with_parent
+    description: >
+      Advertisers with their parent's display name attached, so consumers can
+      roll up to brand without a self-join. Seven source rows are five brands.
+    columns:
+      - name: advertiser_id
+        description: Natural key of the advertiser.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: advertiser_name
+        description: Display name as recorded. ADV-1002 carries a trailing space and lowercase spelling.
+        data_type: varchar
+      - name: parent_advertiser_id
+        description: Natural key of the parent advertiser.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: parent_advertiser_name
+        description: Display name of the parent advertiser -- the brand.
+        data_type: varchar
+        tests:
+          - not_null
+
+  - name: int_billing_adjustments_attributed
+    description: >
+      Billing adjustments with campaign, advertiser and parent advertiser
+      attached. Grain and values are unchanged -- adjustments stay at the
+      campaign x month grain the business rule fixes them at.
+    columns:
+      - name: campaign_id
+        description: Natural key of the campaign the adjustment applies to.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: advertiser_id
+        description: Natural key of the advertiser.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: parent_advertiser_id
+        description: Natural key of the parent advertiser -- the brand.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: billing_month
+        description: Month the adjustment is recorded against, as YYYY-MM.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: adjustment_usd
+        description: Adjustment amount. Net negative across the dataset; a single one can exceed the revenue it applies to.
+        data_type: decimal(18,2)
+        tests:
+          - not_null
+      - name: reason
+        description: Free-text reason recorded by the source.
+        data_type: varchar

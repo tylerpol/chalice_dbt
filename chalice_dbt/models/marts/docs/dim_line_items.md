@@ -32,4 +32,37 @@ One row per line item, keyed on `line_item_key` (an md5 hash of `line_item_id`).
   not as zero — a delivery-vs-contract calculation must exclude these rather than
   score them as under-delivered.
 
+- **The pacing columns are contract arithmetic, not delivery.** `flight_days`,
+  `elapsed_days`, `elapsed_share`, and `expected_impressions_to_date` describe
+  what the contract expects by `pacing_as_of_date` (fixed at **2026-06-30**, so
+  the figures are reproducible rather than drifting with `current_date`).
+  Delivered impressions stay in `fct_delivery_daily` where they belong, so the
+  pacing index is a division at report time:
+
+  ```sql
+  select d.line_item_id,
+         d.contracted_impressions,
+         d.expected_impressions_to_date,
+         sum(f.impressions) as delivered_impressions,
+         round(sum(f.impressions) / d.expected_impressions_to_date, 4) as pacing_index
+  from mart.dim_line_items d
+  join mart.fct_delivery_daily f using (line_item_key)
+  where d.expected_impressions_to_date is not null
+  group by 1, 2, 3
+  order by pacing_index;
+  ```
+
+  Above 1 is ahead of contract, below 1 is behind.
+- **`expected_impressions_to_date` is null, not zero, for FLAT_FEE line items.**
+  They carry no impression commitment, so pacing does not apply to them. Null
+  means "not applicable"; zero would mean "expected nothing", which would make
+  every flat fee line item look infinitely ahead of pace. Do not coalesce it.
+- **Flights are inclusive of both endpoints** — 2026-04-01 to 2026-06-30 is 91
+  days, not 90 — and `elapsed_share` is capped at 1, so a flight that closed
+  before the as-of date reads as fully elapsed rather than over 100%.
+- **Most line items are fully elapsed in the current data**, so their pacing is
+  simply delivered against the whole contract. `LI-5016` is the one genuinely
+  pro-rated case: a 2026-06-01 to 2026-07-31 flight, 30 of 61 days elapsed, so it
+  is measured against 983,607 impressions rather than its full 2,000,000.
+
 {% enddocs %}

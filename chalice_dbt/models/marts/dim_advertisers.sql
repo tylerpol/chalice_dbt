@@ -1,6 +1,6 @@
-with stg_advertisers as (
+with int_advertisers_with_parent as (
 
-    select * from {{ ref('stg_advertisers') }}
+    select * from {{ ref('int_advertisers_with_parent') }}
 
 ),
 
@@ -12,8 +12,9 @@ final as (
         md5(parent_advertiser_id) as parent_advertiser_key,
         parent_advertiser_id,
         advertiser_name,
+        parent_advertiser_name,
         current_timestamp as meta_refreshed_at
-    from stg_advertisers
+    from int_advertisers_with_parent
 
 )
 

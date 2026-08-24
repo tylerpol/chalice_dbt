@@ -9,11 +9,16 @@ The dbt project is nested one level below the repo root:
 ```
 chalice_dbt/            # repo root
 ├── AGENTS.md           # this file
+├── .github/            # PR and Jira ticket templates
+├── chat/               # the natural-language query app
 ├── duckdb/             # the database, built by dbt (git-ignored)
 └── chalice_dbt/        # <- the dbt project; run all dbt commands from here
     ├── dbt_project.yml
     ├── models/
+    │   └── __business_rules.md   # the six business rules, and every decision
+    ├── analyses/       # answer queries; plain SQL, not templated
     ├── seeds/
+    ├── tests/
     └── macros/
 ```
 
@@ -119,3 +124,44 @@ These hold everywhere and are not layer-specific:
   `ST06` is excluded project-wide because it conflicts with the mart key-ordering
   convention; `macros/` is ignored because sqlfluff cannot lint macro definition
   files.
+
+## Writing PRs and tickets
+
+Two templates live in `.github/`. Use them whenever asked to draft either — do
+not invent a structure.
+
+| Ask | Template |
+|---|---|
+| "write the PR", "PR description", "raise a PR" | [`.github/pull_request_template.md`](.github/pull_request_template.md) |
+| "write a ticket", "Jira ticket", "write up the work" | [`.github/jira_ticket_template.md`](.github/jira_ticket_template.md) |
+
+Read the template first and follow its section order and headings exactly. Fill
+every section; delete the guidance comments in angle brackets, and delete
+checklist rows that genuinely do not apply rather than leaving them unticked with
+no explanation.
+
+What both templates need from you, and what makes them worth filling in:
+
+- **State figures, not adjectives.** Every number you claim must be one you
+  actually ran, and both templates have a slot for it. "Revenue is now correct"
+  is worthless; "net revenue moves $565,766.81 → $565,766.83 because rounding
+  moved from the monthly grain to the reporting grain" is reviewable. If you have
+  not run the query, do not write the number.
+- **The PR's "Does this change a published number?" table is the section
+  reviewers read first.** Most changes here move figures someone has already
+  reported. Fill the before/after table whenever a figure moves, including
+  rounding and grain changes that look cosmetic.
+- **Acceptance criteria must be checkable by someone who did not write the
+  code**, each against a specific expected value. Reference the requirement
+  number each one covers. Requirements say what to build; acceptance criteria say
+  how we will know it is right — do not merge the two.
+- **Record decisions, do not bury them.** If the business rules were silent on a
+  case and you decided, say so in the PR's Business rules section and add it to
+  `models/__business_rules.md` in the same change.
+- **Report the build honestly.** `dbt build` counts go in as they came out. A
+  non-zero warning count needs a row in the PR's warning table saying why it is
+  acceptable — never quietly omit it.
+
+If asked for a ticket for work already done, write it as it should have been
+raised beforehand: requirements in the imperative, acceptance criteria as the
+verified figures.

@@ -27,6 +27,31 @@ models:
               arguments:
                 to: ref('dim_campaigns')
                 field: campaign_key
+      - name: advertiser_id
+        description: Natural key of the advertiser this row is attributed to. Null where the line item has no campaign.
+        data_type: varchar
+      - name: advertiser_key
+        description: Foreign key to dim_advertisers, an md5 hash of advertiser_id.
+        data_type: varchar
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_advertisers')
+                field: advertiser_key
+      - name: parent_advertiser_id
+        description: >
+          Natural key of the parent advertiser -- the brand. Carried down onto the
+          row so revenue by brand is a group-by rather than a three-table join.
+          Null where the line item has no campaign.
+        data_type: varchar
+      - name: parent_advertiser_key
+        description: Foreign key to dim_parent_advertisers, an md5 hash of parent_advertiser_id.
+        data_type: varchar
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_parent_advertisers')
+                field: parent_advertiser_key
       - name: billing_month
         description: Billing month (YYYY-MM) the adjustment applies to. Second component of billing_adjustment_key.
         data_type: varchar
