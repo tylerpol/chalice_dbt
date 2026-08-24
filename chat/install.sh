@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Chalice Chat installer -- macOS and Linux.
+# Chalice Chat installer -- macOS, Linux, and Windows via Git Bash or WSL.
 #
 # Sets up a local Python environment, makes sure Ollama is present, downloads the
 # language model, and leaves you ready to run ./start.sh. Nothing leaves your
@@ -41,7 +41,9 @@ printf "  ${DIM}Local, private. Model: %s${RESET}\n\n" "$MODEL"
 # 1 -------------------------------------------------------------------- python
 step "Checking Python"
 PYTHON=""
-for candidate in python3.12 python3.11 python3.10 python3; do
+# `python` last: on Windows it is usually the only name that exists, but on
+# older macOS it can still be Python 2, so the version check below decides.
+for candidate in python3.12 python3.11 python3.10 python3 python; do
   if command -v "$candidate" >/dev/null 2>&1; then
     if "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3,9) else 1)' 2>/dev/null; then
       PYTHON="$candidate"; break
@@ -56,14 +58,19 @@ step "Creating virtual environment"
 if [ ! -d "$VENV" ]; then
   "$PYTHON" -m venv "$VENV" || fail "Could not create a virtual environment in $VENV"
 fi
+
+# Windows puts the venv executables in Scripts/, every other platform in bin/.
+if [ -d "$VENV/bin" ]; then VENV_BIN="$VENV/bin"; else VENV_BIN="$VENV/Scripts"; fi
+[ -x "$VENV_BIN/python" ] || [ -x "$VENV_BIN/python.exe" ] \
+  || fail "The virtual environment in $VENV looks incomplete -- no python in $VENV_BIN."
 done_step "Virtual environment ready"
 
 # 3 ------------------------------------------------------------------ packages
 step "Installing Python packages"
-"$VENV/bin/python" -m pip install --quiet --upgrade pip >/dev/null 2>&1 || true
-if ! "$VENV/bin/python" -m pip install --quiet -r requirements.txt; then
+"$VENV_BIN/python" -m pip install --quiet --upgrade pip >/dev/null 2>&1 || true
+if ! "$VENV_BIN/python" -m pip install --quiet -r requirements.txt; then
   fail "Installing Python packages failed. Re-run without --quiet to see why:
-    $VENV/bin/python -m pip install -r requirements.txt"
+    $VENV_BIN/python -m pip install -r requirements.txt"
 fi
 done_step "Python packages installed"
 
@@ -71,10 +78,11 @@ done_step "Python packages installed"
 step "Checking Ollama"
 if ! command -v ollama >/dev/null 2>&1; then
   printf "\n\n  ${YELLOW}Ollama is not installed.${RESET} It runs the language model locally (~1GB).\n"
-  if [ "$(uname -s)" = "Darwin" ]; then
-    note "Install it from https://ollama.com/download, then re-run this script."
-    fail "Ollama required."
-  fi
+  case "$(uname -s)" in
+    Darwin|MINGW*|MSYS*|CYGWIN*)
+      note "Install it from https://ollama.com/download, then re-run this script."
+      fail "Ollama required." ;;
+  esac
   read -r -p "  Install it now via the official script? [y/N] " reply
   case "$reply" in
     [yY]*) curl -fsSL https://ollama.com/install.sh | sh || fail "Ollama installation failed." ;;

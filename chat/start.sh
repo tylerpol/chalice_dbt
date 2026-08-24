@@ -9,7 +9,10 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 PORT="${CHALICE_PORT:-8501}"
 BOLD=$'\033[1m'; RED=$'\033[31m'; DIM=$'\033[2m'; RESET=$'\033[0m'
 
-[ -d .venv ] || { printf "\n  ${RED}Not installed yet.${RESET} Run ./install.sh first.\n\n" >&2; exit 1; }
+[ -d .venv ] || { printf "\n  ${RED}Not installed yet.${RESET} Run 'bash install.sh' first.\n\n" >&2; exit 1; }
+
+# Windows venvs put executables in Scripts/, everywhere else bin/.
+if [ -d .venv/bin ]; then VENV_BIN=".venv/bin"; else VENV_BIN=".venv/Scripts"; fi
 
 # Ollama must be up; starting it here means the user never has to think about it.
 if ! curl -fsS http://localhost:11434/api/tags >/dev/null 2>&1; then
@@ -24,7 +27,7 @@ fi
 printf "\n  ${BOLD}Chalice Chat${RESET} → http://localhost:%s\n" "$PORT"
 printf "  ${DIM}Press Ctrl+C to stop.${RESET}\n\n"
 
-exec .venv/bin/streamlit run app.py \
+exec "$VENV_BIN/streamlit" run app.py \
   --server.port "$PORT" \
   --server.address localhost \
   --server.headless false \

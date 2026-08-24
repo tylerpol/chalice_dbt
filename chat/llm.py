@@ -78,10 +78,18 @@ Columns of the tables you selected:
 
 ---
 
-Key relationships, derived from the schema. These are the ONLY valid joins;
-chain them to reach anything further out:
+Key relationships, derived from the schema. These are the ONLY valid joins.
+Prefer a direct edge where one exists; chain only to reach something no direct
+edge covers:
 
 {joins}
+
+---
+
+Which table owns which column. A column appears ONLY on the table listed here.
+If you want to filter or group by one, reference it on that table:
+
+{columns}
 """
 
 
@@ -160,12 +168,20 @@ def scan(question: str, catalogue: str) -> list[str]:
     return [t for t in picked if isinstance(t, str)]
 
 
-def ask(question: str, schema: str, joins: str = "", history: list[dict] | None = None) -> Answer:
+def ask(
+    question: str,
+    schema: str,
+    joins: str = "",
+    columns: str = "",
+    history: list[dict] | None = None,
+) -> Answer:
     """Pass 2 -- write the query against the selected tables' columns."""
     messages = [
         {
             "role": "system",
-            "content": ANSWER_PROMPT.format(guidance=guidance(), schema=schema, joins=joins),
+            "content": ANSWER_PROMPT.format(
+                guidance=guidance(), schema=schema, joins=joins, columns=columns
+            ),
         }
     ]
 
@@ -210,6 +226,10 @@ Valid joins, derived from the schema:
 
 {joins}
 
+Which table owns which column:
+
+{columns}
+
 ---
 
 Your previous query failed. Fix it.
@@ -223,12 +243,23 @@ Database error:
 {error}
 
 The error is authoritative. If it says a column is missing from a table, that
-column genuinely is not there — do not simply rewrite the same join. Re-read the
-columns above and route through whichever table actually carries the key.
+column genuinely is not there — do not simply rewrite the same join.
+
+When the error is "Table X does not have a column named Y", the fix is almost
+never a different column name on the same alias. Look up Y in the column
+ownership list above, find the table that actually owns it, and reference it
+there — usually that table is already in your FROM clause under another alias.
 """
 
 
-def repair(question: str, schema: str, bad_sql: str, error: str, joins: str = "") -> Answer:
+def repair(
+    question: str,
+    schema: str,
+    bad_sql: str,
+    error: str,
+    joins: str = "",
+    columns: str = "",
+) -> Answer:
     """Give the model its own error back and let it correct itself once."""
     payload = json.loads(
         _chat(
@@ -239,6 +270,7 @@ def repair(question: str, schema: str, bad_sql: str, error: str, joins: str = ""
                         guidance=guidance(),
                         schema=schema,
                         joins=joins,
+                        columns=columns,
                         question=question,
                         sql=bad_sql,
                         error=error,
@@ -263,3 +295,96 @@ def repair(question: str, schema: str, bad_sql: str, error: str, joins: str = ""
         y=clean("y"),
         color=clean("color"),
     )
+
+
+PLAN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "answerable": {"type": "boolean"},
+        "measures": {"type": "array", "items": {"type": "string"}},
+        "dimensions": {"type": "array", "items": {"type": "string"}},
+        "filters": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "dimension": {"type": "string"},
+                    "values": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["dimension", "values"],
+            },
+        },
+        "months": {"type": "array", "items": {"type": "string"}},
+        "totals": {"type": "boolean"},
+        "order_by": {"type": "string"},
+        "descending": {"type": "boolean"},
+        "limit": {"type": "integer"},
+        "chart_type": {"type": "string", "enum": CHART_TYPES},
+        "x": {"type": "string"},
+        "y": {"type": "string"},
+        "title": {"type": "string"},
+        "explanation": {"type": "string"},
+    },
+    "required": [
+        "answerable", "measures", "dimensions", "filters", "months", "totals",
+        "order_by", "descending", "chart_type", "x", "y", "title", "explanation",
+    ],
+}
+
+PLAN_PROMPT = """\
+You are planning an answer, not writing SQL. The application builds the SQL from
+the measures and dimensions you name, so name them exactly as they appear below
+and nothing else.
+
+{catalogue}
+
+---
+
+Rules:
+
+- `measures` -- the figures the question asks for, by name. Prefer `billed_revenue`
+  when the question is about revenue a finance team would report, since it
+  includes billing adjustments; use `net_revenue` only when the question is
+  explicitly about revenue before adjustments.
+- `dimensions` -- what to break the answer down by, one column each. An empty
+  list gives one total row.
+
+  **`brand` is the default for anything advertiser-shaped.** "Revenue by
+  advertiser", "one row per advertiser", "per brand", "by client" all mean
+  `brand`. The word "advertiser" in a question is NOT a reason to pick the
+  `advertiser` dimension. Choose `advertiser` only when the question explicitly
+  says not to roll up -- "without rolling up", "by individual advertiser
+  account", "including subsidiaries separately". Getting this wrong splits two
+  brands across two lines each and understates one of them by half.
+- `filters` -- how to NARROW the rows, without adding a column. This is the
+  distinction that matters most: "CPM line items pacing worst" wants
+  `filters: [{{"dimension": "pricing_model", "values": ["CPM"]}}]` and
+  `dimensions: ["line_item"]`. Putting `pricing_model` in `dimensions` instead
+  would group by it rather than restrict to it, and answer a different question.
+  A phrase of the form "<value> <things>" is almost always a filter.
+- `months` -- reporting months as YYYY-MM, e.g. ["2026-04","2026-05","2026-06"]
+  for Q2 2026. Empty means all months. A full date is NOT a month: "as of
+  2026-06-30" describes when pacing was measured, which is already baked into
+  the pacing measures, so it needs no filter at all.
+- `totals` -- true when the question asks for a total, subtotal, or quarter
+  total. The application adds the subtotal rows; do not add a measure for it.
+- `order_by` -- a measure name whenever the question ranks or superlatives
+  ("most", "largest", "worst", "top", "biggest"). Empty only when the question
+  asks for a plain breakdown with no ordering implied.
+- `descending` -- true for "most" or "largest"; false for "worst pacing" or
+  "lowest", where the smallest value is the answer.
+- `answerable` -- false ONLY if the question needs something with no measure or
+  dimension above. Anything the list covers is answerable.
+
+`x` and `y` must be names you used in `measures` or `dimensions`, or empty
+strings for a table.
+"""
+
+
+def plan(question: str, catalogue: str) -> dict:
+    """Pick measures and dimensions. Composition is the application's job."""
+    messages = [
+        {"role": "system", "content": PLAN_PROMPT.format(catalogue=catalogue)},
+        {"role": "user", "content": question},
+    ]
+    return json.loads(_chat(messages, PLAN_SCHEMA))

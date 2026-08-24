@@ -14,6 +14,7 @@ import charts
 import config
 import llm
 import schema_context
+import semantic
 from sql_guard import UnsafeSQL, check as check_sql
 
 st.set_page_config(page_title=config.APP_TITLE, page_icon="🍷", layout="wide")
@@ -45,13 +46,14 @@ def get_catalogue() -> tuple[str, int]:
     return schema_context.table_summaries(tables), len(tables)
 
 
-def columns_for(wanted: list[str]) -> tuple[str, str, list[str]]:
-    """Column detail plus the derived join map for the tables the model asked for."""
+def columns_for(wanted: list[str]) -> tuple[str, str, str, list[str]]:
+    """Column detail, the derived join map, and column ownership for the picked tables."""
     tables = schema_context.load_tables(get_connection())
     chosen = schema_context.expand_for_joins(tables, schema_context.subset(tables, wanted))
     return (
         schema_context.render_for_prompt(chosen),
         schema_context.derive_joins(tables),
+        schema_context.derive_column_owners(chosen),
         [t.qualified for t in chosen],
     )
 
@@ -63,6 +65,24 @@ def render_sidebar(model_ready: bool, model_status: str, table_count: int) -> No
         (st.success if model_ready else st.error)(model_status)
         st.write(f"**Database** · `{config.database_path().name}`")
         st.caption(f"{table_count} tables and views · opened read-only")
+
+        # The semantic model names warehouse columns from outside the dbt
+        # project, so it is the one thing here that can drift silently. Check it
+        # against the live database on load and say so plainly if it has.
+        model = semantic.load()
+        if model is None:
+            st.warning("No semantic model found; every question uses free-form SQL.")
+        else:
+            problems = semantic.validate(model, get_connection())
+            if problems:
+                st.error(f"Semantic model is out of date ({len(problems)} problems)")
+                with st.expander("What drifted"):
+                    for problem in problems:
+                        st.write(f"- {problem}")
+            else:
+                measures = len(model.get("measures", []))
+                dimensions = len(model.get("dimensions", []))
+                st.success(f"Semantic model · {measures} measures, {dimensions} dimensions")
 
         st.divider()
         st.subheader("Try asking")
@@ -135,6 +155,102 @@ def render_turn(turn: dict, index: int) -> None:
 def answer(question: str, catalogue: str) -> dict:
     turn: dict = {"question": question}
 
+    # Semantic path first. Where the question maps onto defined measures, the
+    # application composes the SQL and the model only names what it wants --
+    # which removes the two things it gets wrong: multi-fact composition and
+    # subtotals. Anything not covered falls through to free-form SQL below.
+    model = semantic.load()
+    if model is not None:
+        try:
+            raw_plan = llm.plan(question, semantic.describe(model))
+        except Exception:  # noqa: BLE001 - a failed plan is recoverable
+            raw_plan = None
+        if raw_plan and raw_plan.get("answerable") and raw_plan.get("measures"):
+            try:
+                sql, notes, dimension_names = semantic.build(
+                    model,
+                    semantic.Plan(
+                        measures=raw_plan.get("measures", []),
+                        dimensions=raw_plan.get("dimensions", []),
+                        filters={
+                            f["dimension"]: f["values"]
+                            for f in raw_plan.get("filters", [])
+                            if f.get("dimension") and f.get("values")
+                        },
+                        months=raw_plan.get("months", []),
+                        totals=bool(raw_plan.get("totals")),
+                        order_by=(raw_plan.get("order_by") or None),
+                        descending=bool(raw_plan.get("descending", True)),
+                        limit=raw_plan.get("limit") or None,
+                    ),
+                )
+                df = run_query(sql)
+
+                # Chart the detail rows only. A GROUPING SETS result carries its
+                # own subtotals, and the grand total is an order of magnitude
+                # larger than any month -- plotted together it flattens every
+                # real bar to a sliver. The totals stay in the table below,
+                # where they are the point of asking for them.
+                chart_df = df
+                total_columns = [c for c in dimension_names if c in df.columns]
+                if raw_plan.get("totals") and total_columns:
+                    is_detail = ~(df[total_columns] == semantic.TOTAL_LABEL).any(axis=1)
+                    if is_detail.any():
+                        chart_df = df[is_detail]
+
+                # Ranked results come back ordered by the measure, which leaves a
+                # time axis out of sequence and draws a zig-zag. Sort the plotted
+                # copy by the time dimension; the table keeps the ranked order.
+                x_axis = raw_plan.get("x")
+                if (
+                    raw_plan.get("chart_type") in {"line", "area"}
+                    and x_axis in chart_df.columns
+                    and x_axis in dimension_names
+                ):
+                    chart_df = chart_df.sort_values(x_axis)
+
+                # Break the plot into one series per remaining dimension value.
+                # With brand and month both grouped, a single line walks through
+                # every brand in turn and means nothing -- the reader needs a
+                # line per brand. Only when exactly one dimension is left over,
+                # since with two there is no unambiguous choice of series.
+                series = None
+                if raw_plan.get("chart_type") in {
+                    "line", "area", "bar", "horizontal_bar", "scatter"
+                }:
+                    remaining = [
+                        d for d in dimension_names
+                        if d in chart_df.columns and d != x_axis
+                    ]
+                    if len(remaining) == 1:
+                        series = remaining[0]
+
+                figure, fallback = charts.build(
+                    chart_df,
+                    raw_plan.get("chart_type", "table"),
+                    raw_plan.get("x") or None,
+                    raw_plan.get("y") or None,
+                    series,
+                    raw_plan.get("title", "Result"),
+                )
+                explanation = raw_plan.get("explanation", "")
+                if notes:
+                    explanation = (explanation + " " + " ".join(notes)).strip()
+                turn.update(
+                    sql=sql,
+                    title=raw_plan.get("title", "Result"),
+                    explanation=explanation,
+                    df=df,
+                    figure=figure,
+                    fallback=fallback,
+                    semantic=True,
+                )
+                return turn
+            except (semantic.SemanticError, UnsafeSQL):
+                pass  # not expressible as measures -- fall through
+            except Exception:  # noqa: BLE001
+                pass
+
     # Pass 1: let the model scan the catalogue and pick what it needs.
     try:
         wanted = llm.scan(question, catalogue)
@@ -144,18 +260,29 @@ def answer(question: str, catalogue: str) -> dict:
     except Exception:  # noqa: BLE001 - a failed scan is recoverable
         wanted = []
 
-    schema, joins, used = columns_for(wanted)
+    schema, joins, columns, used = columns_for(wanted)
     turn["tables_used"] = used
 
     # Pass 2: write the query against those tables' columns.
     try:
-        spec = llm.ask(question, schema, joins, st.session_state.history)
+        spec = llm.ask(question, schema, joins, columns, st.session_state.history)
     except llm.ModelUnavailable as exc:
         turn["error"] = f"Could not reach the model: {exc}"
         return turn
     except Exception as exc:  # noqa: BLE001
         turn["error"] = f"The model returned something unusable: {exc}"
         return turn
+
+    # Before executing, re-qualify any column hung off the wrong alias. The model
+    # picks the right columns and then attaches them to whichever table it
+    # aliased last; which table owns a column is a lookup, not a judgement call,
+    # so the app settles it rather than spending a repair round on it.
+    fixed_sql, applied, unresolved = schema_context.resolve_column_refs(
+        spec.sql, schema_context.load_tables(get_connection())
+    )
+    if applied:
+        spec.sql = fixed_sql
+        turn["column_fixes"] = applied
 
     turn.update(
         sql=spec.sql,
@@ -173,8 +300,14 @@ def answer(question: str, catalogue: str) -> dict:
         # Database errors are specific and actionable ("column X not found in
         # table Y"), so hand the model its own error and let it correct once.
         first_error = str(exc)
+        # A column that belongs to a table the query never joined cannot be
+        # re-qualified, but we know exactly where it lives -- say so, rather than
+        # handing over DuckDB's "Candidate bindings" guess, which sends the model
+        # looking for a similarly named column on the same wrong table.
+        if unresolved:
+            first_error = first_error + "\n\n" + "\n".join(unresolved)
         try:
-            spec = llm.repair(question, schema, spec.sql, first_error, joins)
+            spec = llm.repair(question, schema, spec.sql, first_error, joins, columns)
             df = run_query(spec.sql)
             turn.update(
                 sql=spec.sql,

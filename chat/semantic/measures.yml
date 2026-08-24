@@ -1,0 +1,263 @@
+# Semantic model — measures and dimensions for the Chalice warehouse.
+#
+# This file is the contract between a question and the SQL that answers it. The
+# app composes queries from these definitions rather than asking the model to
+# write aggregation SQL, because composition is where a small model fails:
+# it reproduces per-row figures correctly and then gets subtotals and
+# multi-source joins wrong.
+#
+# It lives in the dbt project, not in the app, so the definitions sit next to the
+# models they read and are reviewed with them. It is outside `model-paths`, so
+# dbt ignores it.
+#
+# Adding a measure here makes it answerable. No code change.
+
+version: 1
+
+# The fact tables a measure can be drawn from, and what one of their rows means.
+sources:
+  delivery:
+    table: mart.fct_delivery_daily
+    grain: one row per line item per local event date
+
+  adjustments:
+    table: mart.fct_billing_adjustments
+    grain: one row per campaign per billing month
+
+  line_items:
+    table: mart.dim_line_items
+    grain: >
+      one row per line item, already carrying its pacing position as of
+      2026-06-30 -- these are not daily figures and must not be summed per day
+
+# Dimensions name the column that carries them in each source. A dimension a
+# source cannot supply simply excludes that source from the query.
+#
+# ORDER MATTERS. Dimensions are grouped in the order they appear here, not the
+# order they were asked for, and that order drives the subtotal shape: entity
+# first, time last, so "include a quarter total" yields one total per brand
+# rather than one per month.
+dimensions:
+  - name: brand
+    label: Brand
+    # grain_rank orders the entity hierarchy, coarsest to finest. When a plan
+    # over-specifies -- naming brand AND campaign AND line item for a question
+    # about line items -- the finest one is the subject and is never dropped;
+    # the coarser ones are context and may be, if keeping them would exclude the
+    # table holding the measures.
+    grain_rank: 1
+    # brand and advertiser describe the same entity at different levels. Asking
+    # for both splits a brand across its own children, which is the mistake
+    # "one brand is one line" exists to prevent -- so they are alternatives, and
+    # the coarser one wins when a plan names both.
+    exclusive_group: advertiser_level
+    description: >
+      The parent advertiser. Seven advertiser rows are five brands, so this is
+      the level at which one brand is one line.
+    columns:
+      delivery: parent_advertiser_key
+      adjustments: parent_advertiser_key
+    lookup:
+      table: mart.dim_parent_advertisers
+      key: parent_advertiser_key
+      label: parent_advertiser_name
+      null_label: UNATTRIBUTED (line item has no campaign)
+
+  - name: advertiser
+    label: Advertiser
+    grain_rank: 2
+    exclusive_group: advertiser_level
+    description: The advertiser, not rolled up to brand. Splits two brands in half.
+    columns:
+      delivery: advertiser_key
+      adjustments: advertiser_key
+    lookup:
+      table: mart.dim_advertisers
+      key: advertiser_key
+      label: advertiser_name
+      null_label: UNATTRIBUTED (line item has no campaign)
+
+  - name: campaign
+    label: Campaign
+    grain_rank: 3
+    columns:
+      delivery: campaign_key
+      adjustments: campaign_key
+      line_items: campaign_key
+    lookup:
+      table: mart.dim_campaigns
+      key: campaign_key
+      label: campaign_name
+      null_label: UNATTRIBUTED (line item has no campaign)
+
+  - name: market
+    label: Market
+    description: Campaign market. US spans three timezones.
+    columns:
+      delivery: campaign_key
+      adjustments: campaign_key
+    lookup:
+      table: mart.dim_campaigns
+      key: campaign_key
+      label: market
+      null_label: UNATTRIBUTED (line item has no campaign)
+
+  - name: line_item
+    label: Line item
+    grain_rank: 4
+    description: Only delivery and line items carry this; adjustments do not.
+    columns:
+      delivery: line_item_id
+      line_items: line_item_id
+
+  - name: pricing_model
+    label: Pricing model
+    description: CPM or FLAT_FEE. Only line items carry it.
+    columns:
+      line_items: pricing_model
+
+  - name: reason
+    label: Adjustment reason
+    description: Free-text reason on a billing adjustment. Only adjustments carry it.
+    columns:
+      adjustments: reason
+
+  - name: day
+    label: Day
+    description: >
+      The local calendar date delivery occurred on. Use this for daily trends
+      and time series. Only the delivery fact has a daily grain -- adjustments
+      are monthly and pacing is a single snapshot, so neither can be shown by day.
+    columns:
+      delivery: event_date_local
+
+  - name: month
+    label: Reporting month
+    description: >
+      The month delivery actually occurred. Adjustments are recorded against
+      billing_month, which is the same grain, so the two line up. Values are
+      YYYY-MM. A full date is not a month -- "as of 2026-06-30" describes the
+      pacing snapshot, not a filter on this dimension.
+    # Values that do not match are dropped rather than applied, so a stray full
+    # date cannot silently filter a month column down to nothing.
+    value_pattern: '^\d{4}-\d{2}$'
+    columns:
+      delivery: reporting_month
+      adjustments: billing_month
+
+measures:
+  - name: gross_revenue
+    label: Gross revenue
+    description: Revenue before discount.
+    source: delivery
+    expr: sum(gross_revenue_usd)
+
+  - name: discounts
+    label: Discounts
+    description: Discount taken off gross revenue. Reported positive.
+    source: delivery
+    expr: sum(discount_usd)
+
+  - name: net_revenue
+    label: Net revenue
+    description: >
+      Recognised revenue, gross less discount. This is revenue BEFORE billing
+      adjustments — use billed_revenue for what is actually billable.
+    source: delivery
+    expr: sum(net_revenue_usd)
+
+  - name: adjustments
+    label: Billing adjustments
+    description: >
+      Credits, rebates, makegoods and fees at campaign and month. Net negative
+      across the dataset; added after the discount.
+    source: adjustments
+    expr: sum(adjustment_usd)
+
+  - name: billed_revenue
+    label: Billed revenue
+    description: >
+      Net revenue plus billing adjustments — what a CFO would call revenue.
+      Composed from two fact tables, so always ask for this rather than trying
+      to add them by hand.
+    derived: net_revenue + adjustments
+
+  - name: impressions
+    label: Impressions
+    description: >
+      Impressions delivered, at the daily grain. This is the one to use for
+      trends over time and for impressions by brand, campaign or market.
+      Contains negative correction rows.
+    source: delivery
+    expr: sum(impressions)
+
+  - name: clicks
+    label: Clicks
+    source: delivery
+    expr: sum(clicks)
+
+  - name: media_cost
+    label: Media cost
+    description: What delivery cost. NOT revenue — never add the two together.
+    source: delivery
+    expr: sum(media_cost_usd)
+
+  - name: impressions_to_date
+    label: Impressions delivered to date (pacing only)
+    description: >
+      A pacing snapshot: total impressions per line item as of 2026-06-30, one
+      row per line item. NOT a time series and NOT breakable down by day or
+      month. For impressions over time, or impressions by anything other than a
+      line item, use `impressions` instead.
+    source: line_items
+    expr: sum(delivered_impressions_to_date)
+
+  - name: expected_impressions
+    label: Expected impressions
+    description: The contract pro-rated to the elapsed share of the flight.
+    source: line_items
+    expr: sum(expected_impressions_to_date)
+
+  - name: contracted_impressions
+    label: Contracted impressions
+    description: The full impression commitment. Null for FLAT_FEE line items.
+    source: line_items
+    expr: sum(contracted_impressions)
+
+  - name: revenue_at_risk
+    label: Revenue at risk
+    description: >
+      Revenue never earned if the shortfall against full contract is not made
+      up, net of discount. Use this to rank delivery risk -- dollars, not ratio.
+    source: line_items
+    expr: sum(revenue_at_risk_usd)
+
+  - name: shortfall_to_date
+    label: Shortfall to date (impressions)
+    description: >
+      Impressions short of what the contract expects BY the as-of date. This is
+      what "behind" means, and it is what pacing_ratio measures.
+    source: line_items
+    expr: sum(shortfall_to_date_impressions)
+
+  - name: shortfall_full_contract
+    label: Shortfall vs full contract (impressions)
+    description: >
+      Impressions short of the WHOLE commitment. Equal to the to-date shortfall
+      once a flight has closed, and larger while it is still running because it
+      counts flight that has not elapsed. revenue_at_risk is derived from this,
+      so for a line item still in flight it is an upper bound, not a realised miss.
+    source: line_items
+    expr: sum(shortfall_full_contract_impressions)
+
+  - name: pacing_ratio
+    label: Pacing ratio
+    description: >
+      Delivered over expected. Below 1 is behind contract, above 1 is ahead.
+      Worst pacing means the LOWEST ratio, so order ascending.
+    # The interesting end of this measure is the low end -- a ratio ranked
+    # descending puts the healthiest line items at the top of a report about
+    # risk. Declared here because the planner reads "worst" and still asks for
+    # descending, and this is not a judgement it has to make correctly.
+    sort: asc
+    derived: impressions_to_date / expected_impressions
