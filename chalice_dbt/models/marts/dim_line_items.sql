@@ -17,6 +17,12 @@ final as (
         discount_rate,
         flight_start,
         flight_end,
+        is_unmapped,
+        flight_days,
+        pacing_as_of_date,
+        elapsed_days,
+        elapsed_share,
+        expected_impressions_to_date,
         current_timestamp as meta_refreshed_at
     from int_line_items_normalized
 

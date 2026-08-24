@@ -1,6 +1,6 @@
-with int_delivery_daily_deduplicated as (
+with int_delivery_daily_revenue as (
 
-    select * from {{ ref('int_delivery_daily_deduplicated') }}
+    select * from {{ ref('int_delivery_daily_revenue') }}
 
 ),
 
@@ -11,12 +11,20 @@ final as (
         line_item_id,
         md5(line_item_id) as line_item_key,
         event_date_local,
+        campaign_id,
+        md5(campaign_id) as campaign_key,
+        reporting_month,
         impressions,
         clicks,
         media_cost_usd,
         billing_month,
+        revenue_basis,
+        gross_revenue_usd,
+        discount_rate,
+        discount_usd,
+        net_revenue_usd,
         current_timestamp as meta_refreshed_at
-    from int_delivery_daily_deduplicated
+    from int_delivery_daily_revenue
 
 )
 

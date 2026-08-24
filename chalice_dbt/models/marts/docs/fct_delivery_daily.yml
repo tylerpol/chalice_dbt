@@ -17,9 +17,10 @@ models:
           - not_null
       - name: line_item_key
         description: >
-          Foreign key to dim_line_items, an md5 hash of line_item_id. 20 rows
-          reference a line item that does not exist in the dimension, so the
-          relationships test runs at warn severity rather than dropping the spend.
+          Foreign key to dim_line_items, an md5 hash of line_item_id. Always
+          resolves: dim_line_items carries inferred members for line items that
+          deliver but are missing from the source extract, so this test is a hard
+          guarantee. The underlying anomaly is tracked by dim_line_items.is_unmapped.
         data_type: varchar
         tests:
           - not_null
@@ -27,11 +28,31 @@ models:
               arguments:
                 to: ref('dim_line_items')
                 field: line_item_key
-              config:
-                severity: warn
       - name: event_date_local
         description: Local calendar date of delivery, in the campaign's timezone. Second component of delivery_key.
         data_type: date
+      - name: campaign_id
+        description: >
+          Natural key of the campaign the line item belongs to, carried here so
+          campaign rollups need only one join. Null where the source did not
+          associate one.
+        data_type: varchar
+      - name: campaign_key
+        description: >
+          Foreign key to dim_campaigns, an md5 hash of campaign_id. Null where the
+          line item has no campaign.
+        data_type: varchar
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_campaigns')
+                field: campaign_key
+      - name: reporting_month
+        description: >
+          Month the delivery occurred in, as YYYY-MM, derived from
+          event_date_local. Group by this for monthly reporting -- it is the
+          business definition of the reporting month, and deliberately not the
+          same as billing_month, which disagrees on 24 rows.
         tests:
           - not_null
       - name: impressions
@@ -52,6 +73,34 @@ models:
       - name: billing_month
         description: Billing month (YYYY-MM) the source assigned to the delivery. Does not always match the month of event_date_local.
         data_type: varchar
+      - name: revenue_basis
+        description: >
+          How the revenue on this row was arrived at. CPM_DELIVERED means it was
+          earned by this day's impressions. FLAT_FEE_ALLOCATED means the line
+          item's monthly fee was spread evenly across the month's flight days --
+          the daily figure is an allocation, not something this day earned. Null
+          where the line item has no pricing terms.
+        data_type: varchar
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['CPM_DELIVERED', 'FLAT_FEE_ALLOCATED']
+      - name: gross_revenue_usd
+        description: >
+          Revenue before discount, to six decimal places. Null for a line item
+          with no pricing terms. Round to cents at the grain you report on.
+        data_type: decimal(18,6)
+      - name: discount_rate
+        description: Discount as a fraction of 1. Zero where the line item has no discount.
+        data_type: decimal(18,6)
+      - name: discount_usd
+        description: Discount taken off gross revenue.
+        data_type: decimal(18,6)
+      - name: net_revenue_usd
+        description: >
+          Gross less discount. Adjustments are NOT applied here -- they exist only
+          at campaign and month level, in fct_billing_adjustments.
+        data_type: decimal(18,6)
       - name: meta_refreshed_at
         description: Timestamp at which this model was last rebuilt.
         data_type: timestamp
