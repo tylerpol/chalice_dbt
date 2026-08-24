@@ -7,6 +7,14 @@
 -- guarantee from the source. It is unambiguous for the values present today but
 -- would misread a literal 100% discount (1.0 stays 1.0, correctly) or a genuine
 -- 0.05 percentage-point discount. Revisit if the source ever documents a unit.
+--
+-- This model also adds an *inferred member* for every line item that delivers
+-- but is absent from the line-item extract (today: LI-5999, 20 delivery rows,
+-- $1,859.74). The spine is derived from delivery, never hardcoded, so a new
+-- orphan is absorbed automatically. Inferred rows carry `is_unmapped = true`
+-- and null attributes; they exist so the fact table's foreign key always
+-- resolves and unmapped spend lands on a labelled member rather than a null.
+-- The anomaly is not silenced -- `is_unmapped` is tested at warn severity.
 
 with stg_line_items as (
 
@@ -14,7 +22,13 @@ with stg_line_items as (
 
 ),
 
-final as (
+int_delivery_daily_deduplicated as (
+
+    select * from {{ ref('int_delivery_daily_deduplicated') }}
+
+),
+
+sourced as (
 
     select
         line_item_id,
@@ -29,8 +43,39 @@ final as (
             else discount_pct
         end as discount_rate,
         flight_start,
-        flight_end
+        flight_end,
+        false as is_unmapped
     from stg_line_items
+
+),
+
+unmapped as (
+
+    select distinct
+        delivery.line_item_id,
+        cast(null as varchar) as campaign_id,
+        cast(null as varchar) as pricing_model,
+        cast(null as decimal(18, 4)) as rate,
+        cast(null as bigint) as contracted_impressions,
+        cast(null as decimal(18, 4)) as discount_pct,
+        cast(null as decimal(18, 4)) as discount_rate,
+        cast(null as date) as flight_start,
+        cast(null as date) as flight_end,
+        true as is_unmapped
+    from int_delivery_daily_deduplicated as delivery
+    left join sourced
+        on delivery.line_item_id = sourced.line_item_id
+    where sourced.line_item_id is null
+
+),
+
+final as (
+
+    select * from sourced
+
+    union all
+
+    select * from unmapped
 
 )
 

@@ -17,9 +17,10 @@ models:
           - not_null
       - name: line_item_key
         description: >
-          Foreign key to dim_line_items, an md5 hash of line_item_id. 20 rows
-          reference a line item that does not exist in the dimension, so the
-          relationships test runs at warn severity rather than dropping the spend.
+          Foreign key to dim_line_items, an md5 hash of line_item_id. Always
+          resolves: dim_line_items carries inferred members for line items that
+          deliver but are missing from the source extract, so this test is a hard
+          guarantee. The underlying anomaly is tracked by dim_line_items.is_unmapped.
         data_type: varchar
         tests:
           - not_null
@@ -27,8 +28,6 @@ models:
               arguments:
                 to: ref('dim_line_items')
                 field: line_item_key
-              config:
-                severity: warn
       - name: event_date_local
         description: Local calendar date of delivery, in the campaign's timezone. Second component of delivery_key.
         data_type: date

@@ -16,13 +16,12 @@ models:
       - name: campaign_key
         description: >
           Foreign key to dim_campaigns, an md5 hash of campaign_id. Null for line
-          items the source did not associate with a campaign, so the not_null test
-          runs at warn severity.
+          items the source did not associate with a campaign — a valid state rather
+          than a defect, so there is deliberately no not_null test. The
+          relationships test below excludes nulls by design, so referential
+          integrity is still enforced at error severity.
         data_type: varchar
         tests:
-          - not_null:
-              config:
-                severity: warn
           - relationships:
               arguments:
                 to: ref('dim_campaigns')
@@ -31,13 +30,20 @@ models:
         description: Natural key of the campaign this line item belongs to. Null where the source did not associate one.
         data_type: varchar
       - name: pricing_model
-        description: How the line item is priced. CPM bills per thousand impressions; FLAT_FEE bills a fixed amount.
+        description: >
+          How the line item is priced. CPM bills per thousand impressions;
+          FLAT_FEE bills a fixed amount. Null on inferred members, so both tests
+          are scoped to sourced rows.
         data_type: varchar
         tests:
-          - not_null
+          - not_null:
+              config:
+                where: "not is_unmapped"
           - accepted_values:
               arguments:
                 values: ['CPM', 'FLAT_FEE']
+              config:
+                where: "not is_unmapped"
       - name: rate
         description: Contracted rate. Dollars per thousand impressions when pricing_model is CPM, otherwise a flat dollar amount.
         data_type: decimal(18,4)
@@ -53,6 +59,27 @@ models:
       - name: flight_end
         description: Last day the line item is scheduled to deliver.
         data_type: date
+      - name: is_unmapped
+        description: >
+          True for an inferred member -- a line item that delivers but is absent
+          from the source line-item extract, added here so the fact table's
+          foreign key always resolves. All other attributes are null on these
+          rows. Exactly one is expected today (LI-5999), and that accepted
+          baseline is encoded in the test threshold: one inferred member passes,
+          a second one fails the build. The count is the signal -- if it rises,
+          the upstream extract has degraded further.
+        data_type: boolean
+        tests:
+          - not_null
+          - accepted_values:
+              name: dim_line_items_unmapped_members_within_baseline
+              arguments:
+                values: [false]
+                quote: false
+              config:
+                severity: error
+                warn_if: ">1"
+                error_if: ">1"
       - name: meta_refreshed_at
         description: Timestamp at which this model was last rebuilt.
         data_type: timestamp

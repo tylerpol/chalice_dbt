@@ -49,6 +49,9 @@ models:
       Line items with the mixed-unit discount_pct column resolved to a single
       fractional discount_rate. The source records some discounts as fractions
       (0.1) and others as whole percentage points (12.0) in the same column.
+      Also unions in an inferred member for every line item that appears in
+      delivery but not in the line-item extract, so the downstream dimension
+      covers every key the fact table references.
     columns:
       - name: line_item_id
         description: Natural key for the line item.
@@ -68,6 +71,13 @@ models:
       - name: contracted_impressions
         description: Impressions the line item is contracted to deliver. Null where unspecified.
         data_type: bigint
+      - name: is_unmapped
+        description: >
+          True for an inferred member derived from delivery rather than the
+          line-item extract. All other attributes are null on these rows.
+        data_type: boolean
+        tests:
+          - not_null
       - name: discount_pct
         description: Raw discount as recorded by the source, retained for traceability. Mixed units -- do not use for calculation.
         data_type: decimal(18,4)

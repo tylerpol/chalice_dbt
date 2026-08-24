@@ -17,6 +17,7 @@ final as (
         discount_rate,
         flight_start,
         flight_end,
+        is_unmapped,
         current_timestamp as meta_refreshed_at
     from int_line_items_normalized
 
