@@ -28,6 +28,17 @@ models:
       - name: advertiser_name
         description: Display name of the advertiser, passed through raw from the source system.
         data_type: varchar
+      - name: parent_advertiser_name
+        description: >
+          Display name of the parent advertiser -- the brand. Present so a
+          consumer can roll up to brand without joining advertisers to itself.
+          Two source rows are near-duplicates of their parent (ADV-1002 is
+          'northgate insurance ', lowercased with a trailing space; ADV-1004 is
+          the 'NA' division of ADV-1003), so grouping on advertiser_name splits
+          brands that should be one line.
+        data_type: varchar
+        tests:
+          - not_null
       - name: meta_refreshed_at
         description: Timestamp at which this model was last rebuilt.
         data_type: timestamp

@@ -23,6 +23,11 @@ final as (
         elapsed_days,
         elapsed_share,
         expected_impressions_to_date,
+        delivered_impressions_to_date,
+        pacing_ratio,
+        shortfall_to_date_impressions,
+        shortfall_full_contract_impressions,
+        revenue_at_risk_usd,
         current_timestamp as meta_refreshed_at
     from int_line_items_normalized
 

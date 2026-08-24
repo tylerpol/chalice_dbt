@@ -98,6 +98,21 @@ models:
       - name: expected_impressions_to_date
         description: Contract pro-rated to the elapsed flight. Null where there is no impression commitment.
         data_type: bigint
+      - name: delivered_impressions_to_date
+        description: Impressions delivered on or before the as-of date.
+        data_type: bigint
+      - name: pacing_ratio
+        description: Delivered over expected. Null where there is no impression commitment.
+        data_type: decimal(18,6)
+      - name: shortfall_to_date_impressions
+        description: Impressions short of what the contract expects by the as-of date.
+        data_type: bigint
+      - name: shortfall_full_contract_impressions
+        description: Impressions short of the whole commitment.
+        data_type: bigint
+      - name: revenue_at_risk_usd
+        description: Revenue never earned if the full-contract shortfall is not made up, net of discount.
+        data_type: decimal(18,6)
 
   - name: int_delivery_daily_revenue
     description: >
@@ -113,6 +128,12 @@ models:
           - not_null
       - name: campaign_id
         description: Natural key of the campaign. Null where the source did not associate one.
+        data_type: varchar
+      - name: advertiser_id
+        description: Natural key of the advertiser. Null where the line item has no campaign.
+        data_type: varchar
+      - name: parent_advertiser_id
+        description: Natural key of the parent advertiser -- the brand. Null where the line item has no campaign.
         data_type: varchar
       - name: event_date_local
         description: Local calendar date of delivery.
@@ -161,3 +182,63 @@ models:
       - name: net_revenue_usd
         description: Gross less discount, by subtraction so the columns always reconcile.
         data_type: decimal(18,6)
+
+  - name: int_advertisers_with_parent
+    description: >
+      Advertisers with their parent's display name attached, so consumers can
+      roll up to brand without a self-join. Seven source rows are five brands.
+    columns:
+      - name: advertiser_id
+        description: Natural key of the advertiser.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: advertiser_name
+        description: Display name as recorded. ADV-1002 carries a trailing space and lowercase spelling.
+        data_type: varchar
+      - name: parent_advertiser_id
+        description: Natural key of the parent advertiser.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: parent_advertiser_name
+        description: Display name of the parent advertiser -- the brand.
+        data_type: varchar
+        tests:
+          - not_null
+
+  - name: int_billing_adjustments_attributed
+    description: >
+      Billing adjustments with campaign, advertiser and parent advertiser
+      attached. Grain and values are unchanged -- adjustments stay at the
+      campaign x month grain the business rule fixes them at.
+    columns:
+      - name: campaign_id
+        description: Natural key of the campaign the adjustment applies to.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: advertiser_id
+        description: Natural key of the advertiser.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: parent_advertiser_id
+        description: Natural key of the parent advertiser -- the brand.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: billing_month
+        description: Month the adjustment is recorded against, as YYYY-MM.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: adjustment_usd
+        description: Adjustment amount. Net negative across the dataset; a single one can exceed the revenue it applies to.
+        data_type: decimal(18,2)
+        tests:
+          - not_null
+      - name: reason
+        description: Free-text reason recorded by the source.
+        data_type: varchar

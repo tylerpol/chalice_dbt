@@ -100,6 +100,37 @@ models:
           contract, below is behind. Null where the line item has no impression
           commitment; null means not applicable, not zero.
         data_type: bigint
+      - name: delivered_impressions_to_date
+        description: >
+          Impressions delivered on or before pacing_as_of_date, so both sides of
+          the pacing comparison are as of the same moment.
+        data_type: bigint
+      - name: pacing_ratio
+        description: >
+          delivered_impressions_to_date / expected_impressions_to_date. Above 1 is
+          ahead of contract, below 1 is behind. Null where there is no impression
+          commitment -- not applicable, not zero.
+        data_type: decimal(18,6)
+      - name: shortfall_to_date_impressions
+        description: >
+          Impressions short of what the contract expects by the as-of date. This
+          is what "behind" means and it is what pacing_ratio measures. Null where
+          there is no impression commitment.
+        data_type: bigint
+      - name: shortfall_full_contract_impressions
+        description: >
+          Impressions short of the whole commitment. Equal to the to-date
+          shortfall once a flight has closed; larger while it is still running,
+          because it counts flight that has not elapsed yet.
+        data_type: bigint
+      - name: revenue_at_risk_usd
+        description: >
+          Revenue never earned if the full-contract shortfall is never made up,
+          net of the line item's discount -- an unearned impression would have
+          billed at the discounted rate. Null where there is no impression
+          commitment. For a line item still in flight this counts unelapsed
+          flight, so it is an upper bound rather than a realised miss.
+        data_type: decimal(18,6)
       - name: meta_refreshed_at
         description: Timestamp at which this model was last rebuilt.
         data_type: timestamp

@@ -32,6 +32,12 @@
 --
 -- The join is a left join so delivery for a line item with no pricing terms
 -- (LI-5999) keeps its row with null revenue rather than vanishing.
+--
+-- Campaign, advertiser and parent advertiser are carried down onto the row so
+-- that revenue by brand is a group-by rather than a three-table join a reader
+-- has to get right. All three are null for a line item the source did not
+-- associate with a campaign (LI-5105, LI-5106) -- $33,666.19 of Q2 revenue that
+-- reaches no advertiser, which is a source defect, not a modelling gap.
 
 with int_delivery_daily_deduplicated as (
 
@@ -45,6 +51,18 @@ int_line_items_normalized as (
 
 ),
 
+stg_campaigns as (
+
+    select * from {{ ref('stg_campaigns') }}
+
+),
+
+int_advertisers_with_parent as (
+
+    select * from {{ ref('int_advertisers_with_parent') }}
+
+),
+
 priced as (
 
     select
@@ -55,6 +73,8 @@ priced as (
         delivery.media_cost_usd,
         delivery.billing_month,
         line_items.campaign_id,
+        campaigns.advertiser_id,
+        advertisers.parent_advertiser_id,
         line_items.pricing_model,
         cast(coalesce(line_items.discount_rate, 0) as decimal(18, 6)) as discount_rate,
         date_diff(
@@ -79,6 +99,10 @@ priced as (
     from int_delivery_daily_deduplicated as delivery
     left join int_line_items_normalized as line_items
         on delivery.line_item_id = line_items.line_item_id
+    left join stg_campaigns as campaigns
+        on line_items.campaign_id = campaigns.campaign_id
+    left join int_advertisers_with_parent as advertisers
+        on campaigns.advertiser_id = advertisers.advertiser_id
 
 ),
 
@@ -87,6 +111,8 @@ final as (
     select
         line_item_id,
         campaign_id,
+        advertiser_id,
+        parent_advertiser_id,
         event_date_local,
         strftime(date_trunc('month', event_date_local), '%Y-%m') as reporting_month,
         impressions,
