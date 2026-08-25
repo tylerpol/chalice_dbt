@@ -156,11 +156,11 @@ What both templates need from you, and what makes them worth filling in:
   number each one covers. Requirements say what to build; acceptance criteria say
   how we will know it is right — do not merge the two.
 - **Record decisions, do not bury them.** If the business rules were silent on a
-  case and you decided, say so in the PR's Business rules section and add it to
-  `models/__business_rules.md` in the same change.
-- **Report the build honestly.** `dbt build` counts go in as they came out. A
-  non-zero warning count needs a row in the PR's warning table saying why it is
-  acceptable — never quietly omit it.
+  case and you decided, add it to `models/__business_rules.md` in the same
+  change and say so in the PR.
+- **Report the build honestly.** `dbt build` counts go in as they came out, and
+  a non-zero warning count is stated with the reason it is acceptable — never
+  quietly omitted.
 
 If asked for a ticket for work already done, write it as it should have been
 raised beforehand: requirements in the imperative, acceptance criteria as the
