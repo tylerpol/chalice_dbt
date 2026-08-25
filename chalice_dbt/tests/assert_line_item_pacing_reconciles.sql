@@ -16,8 +16,9 @@ with delivered_from_fact as (
         sum(delivery.impressions) as recomputed_impressions
     from {{ ref('fct_line_items') }} as pacing
     left join {{ ref('fct_delivery_daily') }} as delivery
-        on pacing.line_item_id = delivery.line_item_id
-        and delivery.event_date_local <= pacing.pacing_as_of_date
+        on
+            pacing.line_item_id = delivery.line_item_id
+            and pacing.pacing_as_of_date >= delivery.event_date_local
     group by 1, 2
 
 ),
@@ -35,12 +36,14 @@ compared as (
         ) as recomputed_ratio
     from {{ ref('fct_line_items') }} as pacing
     left join delivered_from_fact
-        on pacing.line_item_id = delivered_from_fact.line_item_id
-        and pacing.pacing_as_of_date = delivered_from_fact.pacing_as_of_date
+        on
+            pacing.line_item_id = delivered_from_fact.line_item_id
+            and pacing.pacing_as_of_date = delivered_from_fact.pacing_as_of_date
 
 )
 
 select *
 from compared
-where delivered_impressions_to_date is distinct from recomputed_impressions
+where
+    delivered_impressions_to_date is distinct from recomputed_impressions
     or pacing_ratio is distinct from recomputed_ratio

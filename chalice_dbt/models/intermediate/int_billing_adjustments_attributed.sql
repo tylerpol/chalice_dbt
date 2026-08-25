@@ -1,10 +1,3 @@
--- Attaches campaign, advertiser and parent advertiser to each billing
--- adjustment, so adjustments can be rolled up to brand on the same terms as
--- revenue without a chain of joins at report time.
---
--- Adjustments are recorded at campaign x month, which is the grain the business
--- rule fixes them at, so nothing here changes their grain or their value.
-
 with stg_billing_adjustments as (
 
     select * from {{ ref('stg_billing_adjustments') }}

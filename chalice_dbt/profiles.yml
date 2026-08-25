@@ -1,0 +1,15 @@
+# dbt looks for profiles.yml in the directory it is run from before falling back
+# to ~/.dbt/, so keeping it here makes the project runnable on a fresh clone with
+# no machine setup. There is nothing secret in it: DuckDB is a local file, so the
+# whole connection is a relative path.
+chalice_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../duckdb/chalice.duckdb
+      threads: 1
+    prod:
+      type: duckdb
+      path: ../duckdb/prod.duckdb
+      threads: 4

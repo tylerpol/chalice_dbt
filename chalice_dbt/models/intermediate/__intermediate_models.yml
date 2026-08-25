@@ -52,6 +52,9 @@ models:
       Also resolves campaign, advertiser and parent advertiser once, so that
       dim_line_items and fct_line_items expose an identical key chain. Contract
       terms only -- nothing here depends on delivery or on an as-of date.
+      Adds an inferred member for any line item that delivers but is absent from
+      the source extract, so the delivery fact's foreign key always resolves.
+      Those rows carry is_unmapped = true and null attributes.
     columns:
       - name: line_item_id
         description: Natural key for the line item.
@@ -102,7 +105,9 @@ models:
       elapsed flight, measured as of a fixed date. Separate from
       int_line_items_normalized because every column here depends on what was
       delivered and on when you ask, which is what makes it a fact rather than
-      an attribute of the line item.
+      an attribute of the line item. Elapsed share is capped at 1, and a line
+      item with no impression commitment gets a null expectation rather than a
+      zero. The decisions behind those are recorded in models/__business_rules.md.
     columns:
       - name: line_item_id
         description: Natural key of the line item being measured.
@@ -145,6 +150,10 @@ models:
       by the day's impressions; flat fee revenue is the monthly rate allocated
       evenly across the month's flight days, so summing a month reproduces the
       contracted rate. Keeps the mart at the lowest grain the data supports.
+      Money is decimal to six places, never float, so a flat fee month sums back
+      to its contracted rate exactly -- round to cents at the grain you report
+      on. Pricing is joined left, so delivery for a line item with no contract
+      keeps its row with null revenue rather than vanishing.
     columns:
       - name: line_item_id
         description: Natural key of the line item that delivered.
@@ -211,7 +220,9 @@ models:
   - name: int_advertisers_with_parent
     description: >
       Advertisers with their parent's display name attached, so consumers can
-      roll up to brand without a self-join. Seven source rows are five brands.
+      roll up to brand without a self-join. Seven source rows are five brands;
+      grouping on advertiser instead of parent splits two of them across two
+      lines each.
     columns:
       - name: advertiser_id
         description: Natural key of the advertiser.
