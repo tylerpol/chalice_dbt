@@ -104,6 +104,25 @@ These hold everywhere and are not layer-specific:
   get `relationships` tests in marts. See the layer docs for specifics.
 - **Documentation is mandatory.** Every column carries a `description`, and yml
   column order mirrors the model's column order.
+- **Documentation belongs in yml, never in a comment block above the SQL.** Do
+  not open a model with an explanatory header. The model's `description` in its
+  yml says what it does and why; column `description`s carry the per-column
+  traps; a mart's doc block in `docs/<model>.md` carries the granularity and dev
+  notes; and a decision the business rules were silent on goes in
+  `models/__business_rules.md`. Those are the four places, and they are the ones
+  `persist_docs` pushes into the warehouse for the chat app to read — a header
+  comment reaches none of them and goes stale unread.
+
+  Keep descriptions short. State the rule and the consequence, not the reasoning
+  that led there.
+
+  Inline `--` comments are still fine, but only against a specific line whose
+  intent the SQL does not carry on its own, and only a line or two:
+
+  ```sql
+  -- greatest(0, null) returns 0 in DuckDB, so guard on the contract to
+  -- keep "no commitment" reading as null rather than a confident zero.
+  ```
 
 ## Working practice
 
