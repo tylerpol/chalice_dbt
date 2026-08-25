@@ -124,31 +124,36 @@ Note what makes it correct:
 advertiser rows are five brands: two are near-duplicates of their parent. Group
 on `dim_advertisers.advertiser_name` and you split two brands in half.
 
-### Worked example — pacing, with no fact join at all
+### Worked example — pacing, one join
 
-`mart.dim_line_items` already holds delivered impressions, the contract
-expectation, the ratio and the revenue at risk, one row per line item. Joining
-the daily fact adds nothing and repeats every line item once per delivery day:
+`mart.fct_line_items` holds the pacing measurement — delivered impressions as of
+the as-of date, the contract expectation, the ratio and the revenue at risk — one
+row per line item. The contract terms it is measured against are on
+`mart.dim_line_items`, so restricting to CPM is a single join:
 
 ```sql
 select
-    line_item_id,
-    contracted_impressions,
-    expected_impressions_to_date,
-    delivered_impressions_to_date,
-    round(pacing_ratio, 4) as pacing_ratio,
-    round(revenue_at_risk_usd, 2) as revenue_at_risk_usd
-from mart.dim_line_items
-where pricing_model = 'CPM'
-  and expected_impressions_to_date is not null
-order by revenue_at_risk_usd desc
+    pacing.line_item_id,
+    pacing.contracted_impressions,
+    pacing.expected_impressions_to_date,
+    pacing.delivered_impressions_to_date,
+    round(pacing.pacing_ratio, 4) as pacing_ratio,
+    round(pacing.revenue_at_risk_usd, 2) as revenue_at_risk_usd
+from mart.fct_line_items as pacing
+join mart.dim_line_items as line_items
+    on pacing.line_item_key = line_items.line_item_key
+where line_items.pricing_model = 'CPM'
+  and pacing.expected_impressions_to_date is not null
+order by pacing.revenue_at_risk_usd desc
 ```
 
 Note what makes it correct:
 
-- **No join.** The question is about line items, and every column asked for is on
-  the line item dimension. Joining `mart.fct_delivery_daily` here would fan each
-  line item out to ~90 duplicate rows.
+- **The daily fact is not involved.** Every measure asked for is already one row
+  per line item on `fct_line_items`. Joining `mart.fct_delivery_daily` here would
+  fan each line item out to ~90 duplicate rows.
+- **Only `dim_line_items` is joined, and only for `pricing_model`.** It is a
+  one-to-one join on the line item's primary key, so it cannot fan rows out.
 - **"Worst pacing" is the LOWEST ratio**, so order ascending by `pacing_ratio`,
   or descending by `revenue_at_risk_usd` if the question is about exposure.
   `order by pacing_ratio desc` puts the best performers first and answers the
@@ -158,8 +163,11 @@ Note what makes it correct:
 
 ### When you do need to chain
 
-Line item attributes -- `pricing_model`, `rate`, `contracted_impressions`,
-pacing -- are on `mart.dim_line_items`, one hop from the fact. Campaign
+Line item contract terms -- `pricing_model`, `rate`, `contracted_impressions`,
+`discount_rate`, the flight dates -- are on `mart.dim_line_items`, one hop from
+either fact. Pacing measures are on `mart.fct_line_items`, which carries the same
+campaign, advertiser and brand keys the delivery fact does, so pacing by brand
+needs no chaining either. Campaign
 attributes such as `market` and `timezone` are on `mart.dim_campaigns`, which the
 fact also points at directly via `campaign_key`. Chain only when the column you
 need is genuinely two tables away.
@@ -212,14 +220,14 @@ affect the answer.
 - Two line items carry no campaign, so their revenue reaches no advertiser --
   `parent_advertiser_key` is null on those rows. Report it as unattributed rather
   than dropping it; the totals will not tie otherwise.
-- Pacing columns on `mart.dim_line_items` are null for `FLAT_FEE` line items,
+- Pacing columns on `mart.fct_line_items` are null for `FLAT_FEE` line items,
   which have no impression commitment. Null means not applicable, not zero.
-- **Pacing columns live on `mart.dim_line_items`, not on the fact** —
+- **Pacing lives on `mart.fct_line_items`, one row per line item** —
   `pacing_ratio`, `delivered_impressions_to_date`, `expected_impressions_to_date`,
-  `revenue_at_risk_usd` and the shortfalls are all one row per line item. They are
-  already totals, so joining them to the daily fact repeats them on every
-  delivery row. Never `sum()` them across the fact; select them from the
-  dimension alone, or aggregate with `max()` if a join is unavoidable.
+  `revenue_at_risk_usd` and the shortfalls are already totals as of the as-of
+  date, so joining them to the daily fact repeats them on every delivery row.
+  Never `sum()` them across `fct_delivery_daily`; select them from
+  `fct_line_items` alone, joining `dim_line_items` only for contract terms.
 - `rate` means dollars per thousand impressions for `CPM` and a flat amount for
   `FLAT_FEE`. Never average or sum it across pricing models.
 - A null `contracted_impressions` means no volume commitment, not zero.

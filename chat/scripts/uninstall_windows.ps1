@@ -1,9 +1,12 @@
 # Remove what install_windows.ps1 created -- Windows (PowerShell).
 #
-#   powershell -ExecutionPolicy Bypass -File uninstall_windows.ps1
+#   powershell -ExecutionPolicy Bypass -File scripts\uninstall_windows.ps1
 
 $ErrorActionPreference = 'Stop'
-Set-Location -Path $PSScriptRoot
+# This script lives in scripts\ but operates on the app root one level up,
+# where the virtual environment, requirements.txt and app.py live.
+. (Join-Path $PSScriptRoot '_common.ps1')
+Set-Location -Path (Split-Path $PSScriptRoot -Parent)
 
 $Model = if ($env:CHALICE_MODEL) { $env:CHALICE_MODEL } else { 'qwen2.5-coder:3b' }
 
@@ -19,14 +22,15 @@ Get-ChildItem -Path . -Filter '__pycache__' -Recurse -Directory -ErrorAction Sil
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
 # The model is shared: something else on this machine may be using it, so ask.
-if (Get-Command ollama -ErrorAction SilentlyContinue) {
-    $installed = (& ollama list) -join "`n"
+$ollama = Find-Ollama
+if ($ollama) {
+    $installed = (& $ollama list) -join "`n"
     if ($installed -match [regex]::Escape($Model)) {
         Write-Host "`n  The language model $Model (about 1.9 GB) is still installed." -ForegroundColor Yellow
         Write-Host '  Other tools on this machine may be using it.'
         $reply = Read-Host '  Remove it? [y/N]'
         if ($reply -match '^[yY]') {
-            & ollama rm $Model
+            & $ollama rm $Model
             Write-Host "  Removed $Model." -ForegroundColor Green
         } else {
             Write-Host '  Left in place.' -ForegroundColor DarkGray

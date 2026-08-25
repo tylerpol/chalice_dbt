@@ -114,7 +114,10 @@ def validate(model: dict, con) -> list[str]:
         if table not in known:
             continue
         for column in re.findall(r"[A-Za-z_][\w]*", measure["expr"]):
-            if column in {"sum", "count", "avg", "min", "max", "distinct"}:
+            # `base` is the alias the composer gives the source table. Measures
+            # qualify their columns with it so that a lookup joined for a
+            # dimension cannot make a column name ambiguous.
+            if column in {"sum", "count", "avg", "min", "max", "distinct", "base"}:
                 continue
             if column not in known[table]:
                 problems.append(f"measure {measure['name']}: {table} has no column {column}")

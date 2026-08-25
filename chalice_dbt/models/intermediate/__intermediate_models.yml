@@ -49,6 +49,9 @@ models:
       Line items with the mixed-unit discount_pct column resolved to a single
       fractional discount_rate. The source records some discounts as fractions
       (0.1) and others as whole percentage points (12.0) in the same column.
+      Also resolves campaign, advertiser and parent advertiser once, so that
+      dim_line_items and fct_line_items expose an identical key chain. Contract
+      terms only -- nothing here depends on delivery or on an as-of date.
     columns:
       - name: line_item_id
         description: Natural key for the line item.
@@ -83,12 +86,34 @@ models:
       - name: flight_end
         description: Last day the line item is scheduled to deliver.
         data_type: date
-      - name: pacing_as_of_date
-        description: Date the elapsed and expected columns are evaluated at. Fixed at 2026-06-30.
-        data_type: date
+      - name: advertiser_id
+        description: Natural key of the advertiser, resolved through the campaign. Null where the line item has no campaign.
+        data_type: varchar
+      - name: parent_advertiser_id
+        description: Natural key of the parent advertiser -- the brand. Null where the line item has no campaign.
+        data_type: varchar
       - name: flight_days
         description: Length of the flight in days, inclusive of both endpoints.
         data_type: bigint
+
+  - name: int_line_items_pacing
+    description: >
+      Business rule 6 -- delivery pacing against contract, pro-rated to the
+      elapsed flight, measured as of a fixed date. Separate from
+      int_line_items_normalized because every column here depends on what was
+      delivered and on when you ask, which is what makes it a fact rather than
+      an attribute of the line item.
+    columns:
+      - name: line_item_id
+        description: Natural key of the line item being measured.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: pacing_as_of_date
+        description: Date pacing is evaluated at. Fixed at 2026-06-30. Part of the grain.
+        data_type: date
+        tests:
+          - not_null
       - name: elapsed_days
         description: Days of the flight elapsed at the as-of date, floored at 0.
         data_type: bigint

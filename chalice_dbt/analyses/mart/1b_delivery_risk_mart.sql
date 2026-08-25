@@ -5,12 +5,14 @@
 -- CPM line items pacing worst against contract, with the revenue that never gets
 -- earned if the shortfall is never made up.
 --
--- The pacing arithmetic lives in the warehouse, on dim_line_items: the as-of
+-- The pacing arithmetic lives in the warehouse, on fct_line_items: the as-of
 -- date, the elapsed share of the flight, the contract pro-rated to it, delivered
--- impressions as of that date, both shortfalls and the revenue at risk. This
--- query selects and formats; it derives nothing. That also means the as-of date
--- is not hardcoded here -- it comes from the model, and pacing_as_of_date is
--- returned so a reader can see what the numbers are relative to.
+-- impressions as of that date, both shortfalls and the revenue at risk. The
+-- contract terms it is measured against -- pricing model and contracted volume --
+-- are on dim_line_items, one join away. This query selects and formats; it
+-- derives nothing. That also means the as-of date is not hardcoded here -- it
+-- comes from the model, and pacing_as_of_date is returned so a reader can see
+-- what the numbers are relative to.
 --
 -- Only CPM line items appear. Flat fee line items carry no impression
 -- commitment, so every pacing column is null for them -- not zero, which would
@@ -33,18 +35,20 @@
 select
     line_items.line_item_id,
     coalesce(campaigns.campaign_name, '(no campaign on line item)') as campaign_name,
-    line_items.pacing_as_of_date,
+    pacing.pacing_as_of_date,
     line_items.contracted_impressions,
-    line_items.expected_impressions_to_date,
-    line_items.delivered_impressions_to_date as delivered_impressions,
-    round(line_items.elapsed_share, 4) as flight_elapsed_share,
-    round(line_items.pacing_ratio, 4) as pacing_ratio,
-    line_items.shortfall_to_date_impressions as shortfall_to_date,
-    line_items.shortfall_full_contract_impressions as shortfall_full_contract,
-    round(line_items.revenue_at_risk_usd, 2) as revenue_at_risk_usd
-from mart.dim_line_items as line_items
+    pacing.expected_impressions_to_date,
+    pacing.delivered_impressions_to_date as delivered_impressions,
+    round(pacing.elapsed_share, 4) as flight_elapsed_share,
+    round(pacing.pacing_ratio, 4) as pacing_ratio,
+    pacing.shortfall_to_date_impressions as shortfall_to_date,
+    pacing.shortfall_full_contract_impressions as shortfall_full_contract,
+    round(pacing.revenue_at_risk_usd, 2) as revenue_at_risk_usd
+from mart.fct_line_items as pacing
+inner join mart.dim_line_items as line_items
+    on pacing.line_item_key = line_items.line_item_key
 left join mart.dim_campaigns as campaigns
-    on line_items.campaign_key = campaigns.campaign_key
+    on pacing.campaign_key = campaigns.campaign_key
 where line_items.pricing_model = 'CPM'
     and line_items.contracted_impressions is not null
 order by revenue_at_risk_usd desc, pacing_ratio asc

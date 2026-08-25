@@ -8,9 +8,16 @@
 #
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")"
+# This script lives in scripts/ but every path it touches -- the virtual
+# environment, requirements.txt, app.py, data/ -- belongs to the app root one
+# level up. Resolve both explicitly rather than depending on where it was run from.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=_common.sh
+. "$SCRIPT_DIR/_common.sh"
+cd "$SCRIPT_DIR/.."
 
 MODEL="${CHALICE_MODEL:-qwen2.5-coder:3b}"
+OLLAMA="$(chalice_find_ollama || true)"
 BOLD=$'\033[1m'; DIM=$'\033[2m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; RESET=$'\033[0m'
 
 printf "\n  ${BOLD}Chalice Chat — uninstaller${RESET}\n\n"
@@ -28,12 +35,12 @@ esac
 printf "\n"
 
 # --- model -------------------------------------------------------------------
-if command -v ollama >/dev/null 2>&1; then
-  if ollama list 2>/dev/null | awk '{print $1}' | grep -qx "$MODEL"; then
-    if ollama rm "$MODEL" >/dev/null 2>&1; then
+if [ -n "$OLLAMA" ]; then
+  if "$OLLAMA" list 2>/dev/null | awk '{print $1}' | grep -qx "$MODEL"; then
+    if "$OLLAMA" rm "$MODEL" >/dev/null 2>&1; then
       printf "  ${GREEN}✓${RESET} Removed model %s\n" "$MODEL"
     else
-      printf "  ${YELLOW}!${RESET} Could not remove %s — remove it manually with: ollama rm %s\n" "$MODEL" "$MODEL"
+      printf "  ${YELLOW}!${RESET} Could not remove %s — remove it manually with:\n    %s rm %s\n" "$MODEL" "$OLLAMA" "$MODEL"
     fi
   else
     printf "  ${DIM}·${RESET} Model %s was not installed\n" "$MODEL"
@@ -51,8 +58,8 @@ else
 fi
 
 # --- ollama itself -----------------------------------------------------------
-if command -v ollama >/dev/null 2>&1; then
-  remaining=$(ollama list 2>/dev/null | tail -n +2 | grep -c . || true)
+if [ -n "$OLLAMA" ]; then
+  remaining=$("$OLLAMA" list 2>/dev/null | tail -n +2 | grep -c . || true)
   printf "\n  Ollama is still installed"
   [ "$remaining" -gt 0 ] && printf " with %s other model(s)" "$remaining"
   printf ".\n"

@@ -29,6 +29,33 @@ models:
       - name: campaign_id
         description: Natural key of the campaign this line item belongs to. Null where the source did not associate one.
         data_type: varchar
+      - name: advertiser_key
+        description: >
+          Foreign key to dim_advertisers, resolved through the campaign. Null
+          where the line item has no campaign, so the relationships test excludes
+          nulls by design and there is deliberately no not_null test.
+        data_type: varchar
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_advertisers')
+                field: advertiser_key
+      - name: advertiser_id
+        description: Natural key of the advertiser. Null where the line item has no campaign.
+        data_type: varchar
+      - name: parent_advertiser_key
+        description: >
+          Foreign key to dim_parent_advertisers -- the brand. Null where the line
+          item has no campaign.
+        data_type: varchar
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_parent_advertisers')
+                field: parent_advertiser_key
+      - name: parent_advertiser_id
+        description: Natural key of the parent advertiser. Null where the line item has no campaign.
+        data_type: varchar
       - name: pricing_model
         description: >
           How the line item is priced. CPM bills per thousand impressions;
@@ -59,6 +86,9 @@ models:
       - name: flight_end
         description: Last day the line item is scheduled to deliver.
         data_type: date
+      - name: flight_days
+        description: Length of the flight in days, inclusive of both endpoints.
+        data_type: bigint
       - name: is_unmapped
         description: >
           True for an inferred member -- a line item that delivers but is absent
@@ -79,58 +109,6 @@ models:
                 severity: error
                 warn_if: ">1"
                 error_if: ">1"
-      - name: flight_days
-        description: Length of the flight in days, inclusive of both endpoints.
-        data_type: bigint
-      - name: pacing_as_of_date
-        description: >
-          Date the elapsed and expected columns are evaluated at. Fixed at
-          2026-06-30 rather than current_date so pacing is reproducible.
-        data_type: date
-      - name: elapsed_days
-        description: Days of the flight elapsed at the as-of date, floored at 0.
-        data_type: bigint
-      - name: elapsed_share
-        description: elapsed_days / flight_days, capped at 1.
-        data_type: decimal(18,10)
-      - name: expected_impressions_to_date
-        description: >
-          The contract pro-rated to the elapsed flight. Divide summed delivered
-          impressions by this for the pacing index -- above 1 is ahead of
-          contract, below is behind. Null where the line item has no impression
-          commitment; null means not applicable, not zero.
-        data_type: bigint
-      - name: delivered_impressions_to_date
-        description: >
-          Impressions delivered on or before pacing_as_of_date, so both sides of
-          the pacing comparison are as of the same moment.
-        data_type: bigint
-      - name: pacing_ratio
-        description: >
-          delivered_impressions_to_date / expected_impressions_to_date. Above 1 is
-          ahead of contract, below 1 is behind. Null where there is no impression
-          commitment -- not applicable, not zero.
-        data_type: decimal(18,6)
-      - name: shortfall_to_date_impressions
-        description: >
-          Impressions short of what the contract expects by the as-of date. This
-          is what "behind" means and it is what pacing_ratio measures. Null where
-          there is no impression commitment.
-        data_type: bigint
-      - name: shortfall_full_contract_impressions
-        description: >
-          Impressions short of the whole commitment. Equal to the to-date
-          shortfall once a flight has closed; larger while it is still running,
-          because it counts flight that has not elapsed yet.
-        data_type: bigint
-      - name: revenue_at_risk_usd
-        description: >
-          Revenue never earned if the full-contract shortfall is never made up,
-          net of the line item's discount -- an unearned impression would have
-          billed at the discounted rate. Null where there is no impression
-          commitment. For a line item still in flight this counts unelapsed
-          flight, so it is an upper bound rather than a realised miss.
-        data_type: decimal(18,6)
       - name: meta_refreshed_at
         description: Timestamp at which this model was last rebuilt.
         data_type: timestamp

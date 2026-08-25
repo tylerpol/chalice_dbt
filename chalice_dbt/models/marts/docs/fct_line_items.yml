@@ -1,0 +1,129 @@
+version: 2
+
+models:
+  - name: fct_line_items
+    description: '{{ doc("fct_line_items") }}'
+    columns:
+      - name: line_item_pacing_key
+        description: >
+          Surrogate key for the pacing measurement, an md5 hash of line_item_id
+          and pacing_as_of_date -- the two columns that define the grain.
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: line_item_id
+        description: Natural key of the line item being measured.
+        data_type: varchar
+        tests:
+          - not_null
+      - name: line_item_key
+        description: Foreign key to dim_line_items, an md5 hash of line_item_id.
+        data_type: varchar
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_line_items')
+                field: line_item_key
+      - name: pacing_as_of_date
+        description: >
+          The date pacing is measured at. Fixed at 2026-06-30 rather than
+          current_date so the figures are reproducible. Part of the grain: every
+          measure on this row is relative to this date and means nothing without
+          it.
+        data_type: date
+        tests:
+          - not_null
+      - name: campaign_id
+        description: Natural key of the campaign. Null where the source did not associate one.
+        data_type: varchar
+      - name: campaign_key
+        description: >
+          Foreign key to dim_campaigns. Null for line items the source did not
+          associate with a campaign, so there is deliberately no not_null test;
+          the relationships test excludes nulls by design.
+        data_type: varchar
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_campaigns')
+                field: campaign_key
+      - name: advertiser_id
+        description: Natural key of the advertiser. Null where the line item has no campaign.
+        data_type: varchar
+      - name: advertiser_key
+        description: Foreign key to dim_advertisers. Null where the line item has no campaign.
+        data_type: varchar
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_advertisers')
+                field: advertiser_key
+      - name: parent_advertiser_id
+        description: Natural key of the parent advertiser -- the brand. Null where the line item has no campaign.
+        data_type: varchar
+      - name: parent_advertiser_key
+        description: Foreign key to dim_parent_advertisers. Null where the line item has no campaign.
+        data_type: varchar
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_parent_advertisers')
+                field: parent_advertiser_key
+      - name: elapsed_days
+        description: Days of the flight elapsed at the as-of date, floored at 0.
+        data_type: bigint
+      - name: elapsed_share
+        description: elapsed_days / flight_days, capped at 1.
+        data_type: decimal(18,10)
+      - name: contracted_impressions
+        description: >
+          The full impression commitment -- the basis every measure on this row
+          is calculated against. Also on dim_line_items as a contract term; it is
+          carried here so a pacing row can be read without a join, and
+          assert_line_item_contract_matches_dimension fails the build if the two
+          ever disagree. Null where the line item has no volume commitment.
+        data_type: bigint
+      - name: expected_impressions_to_date
+        description: >
+          The contract pro-rated to the elapsed flight -- what the line item
+          should have delivered by the as-of date. Null where the line item has
+          no impression commitment; null means not applicable, not zero.
+        data_type: bigint
+      - name: delivered_impressions_to_date
+        description: >
+          Impressions delivered on or before pacing_as_of_date, so both sides of
+          the pacing comparison are as of the same moment. Reconciled against
+          fct_delivery_daily by assert_line_item_pacing_reconciles.
+        data_type: bigint
+      - name: pacing_ratio
+        description: >
+          delivered_impressions_to_date / expected_impressions_to_date. Above 1
+          is ahead of contract, below 1 is behind -- so "worst pacing" is the
+          LOWEST value, not the highest. Null where there is no impression
+          commitment.
+        data_type: decimal(18,6)
+      - name: shortfall_to_date_impressions
+        description: >
+          Impressions short of what the contract expects by the as-of date. This
+          is what "behind" means and it is what pacing_ratio measures. Null where
+          there is no impression commitment.
+        data_type: bigint
+      - name: shortfall_full_contract_impressions
+        description: >
+          Impressions short of the whole commitment. Equal to the to-date
+          shortfall once a flight has closed; larger while it is still running,
+          because it counts flight that has not elapsed yet.
+        data_type: bigint
+      - name: revenue_at_risk_usd
+        description: >
+          Revenue never earned if the full-contract shortfall is never made up,
+          net of the line item's discount -- an unearned impression would have
+          billed at the discounted rate. Null where there is no impression
+          commitment. For a line item still in flight this counts unelapsed
+          flight, so it is an upper bound rather than a realised miss.
+        data_type: decimal(18,6)
+      - name: meta_refreshed_at
+        description: Timestamp at which this model was last rebuilt.
+        data_type: timestamp

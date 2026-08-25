@@ -16,30 +16,16 @@
 -- and unmapped spend lands on a labelled member rather than a null. The anomaly
 -- is not silenced -- dim_line_items tests the count against a known baseline.
 --
--- This model also derives the contract-side half of pacing (rule 6): how long
--- the flight is, how much of it had elapsed at the as-of date, and how many
--- impressions the contract therefore expects by then. Delivered impressions stay
--- in the fact where they belong, so the pacing index is a division at report
--- time -- see the dim_line_items doc for the query.
+-- Everything here is a property of the *contract*: what was agreed, for how much,
+-- over which dates. Nothing in this model depends on what was delivered or on
+-- when you ask. Pacing -- which needs both -- lives in `int_line_items_pacing`,
+-- and `flight_days` is the one piece of flight arithmetic that belongs here
+-- because it is a function of the flight dates alone.
 --
--- Pacing decisions the rule does not cover:
---   * Flights are inclusive of both endpoints, so 2026-04-01 to 2026-06-30 is 91
---     days, not 90. An off-by-one here shifts every pacing index.
---   * Elapsed share is capped at 1: a flight that closed before the as-of date is
---     fully elapsed, one that had not started is 0.
---   * Line items with no impression commitment (every FLAT_FEE one) get a null
---     expectation, not zero. Null means "not applicable"; zero would mean
---     "expected nothing", which is a different claim.
---   * Two shortfalls are carried because they answer different questions.
---     `shortfall_to_date_impressions` is delivered against what the contract
---     expects by the as-of date -- that is what "behind" means, and it is what
---     pacing_ratio measures. `shortfall_full_contract_impressions` is delivered
---     against the whole commitment, and it drives `revenue_at_risk_usd` because
---     that is what goes unearned if nothing more delivers. For a flight that has
---     already closed the two are equal; they differ only for a line item still
---     in flight, where conflating them counts unelapsed flight as already missed.
---   * Revenue at risk is net of the line item's discount: an unearned impression
---     would have billed at the discounted rate, not the rack rate.
+-- Campaign, advertiser and parent advertiser are resolved here once, so that
+-- `dim_line_items` and `fct_line_items` carry the identical key chain and a
+-- reader can group either by brand without a three-table join. Resolving it in
+-- one place is what keeps the two models from disagreeing.
 
 with stg_line_items as (
 
@@ -50,6 +36,18 @@ with stg_line_items as (
 int_delivery_daily_deduplicated as (
 
     select * from {{ ref('int_delivery_daily_deduplicated') }}
+
+),
+
+stg_campaigns as (
+
+    select * from {{ ref('stg_campaigns') }}
+
+),
+
+int_advertisers_with_parent as (
+
+    select * from {{ ref('int_advertisers_with_parent') }}
 
 ),
 
@@ -71,11 +69,6 @@ normalized as (
         ) as discount_rate,
         flight_start,
         flight_end,
-        -- Pacing is evaluated as of the date in the brief rather than
-        -- current_date, so the numbers are reproducible. Declared here, in the
-        -- only model that uses it, rather than as a project variable a reader
-        -- would have to go looking for.
-        cast('2026-06-30' as date) as pacing_as_of_date,
         false as is_unmapped
     from stg_line_items
 
@@ -93,23 +86,11 @@ unmapped as (
         cast(null as decimal(18, 6)) as discount_rate,
         cast(null as date) as flight_start,
         cast(null as date) as flight_end,
-        cast('2026-06-30' as date) as pacing_as_of_date,
         true as is_unmapped
     from int_delivery_daily_deduplicated as delivery
     left join normalized
         on delivery.line_item_id = normalized.line_item_id
     where normalized.line_item_id is null
-
-),
-
-delivered as (
-
-    select
-        line_item_id,
-        sum(impressions) as delivered_impressions_to_date
-    from int_delivery_daily_deduplicated
-    where event_date_local <= cast('2026-06-30' as date)
-    group by 1
 
 ),
 
@@ -123,43 +104,17 @@ combined as (
 
 ),
 
-elapsed as (
+attributed as (
 
     select
-        *,
-        date_diff('day', flight_start, flight_end) + 1 as flight_days,
-        greatest(
-            0, date_diff('day', flight_start, least(pacing_as_of_date, flight_end)) + 1
-        ) as elapsed_days
+        combined.*,
+        campaigns.advertiser_id,
+        advertisers.parent_advertiser_id
     from combined
-
-),
-
-expectation as (
-
-    select
-        elapsed.*,
-        coalesce(delivered.delivered_impressions_to_date, 0) as delivered_impressions_to_date,
-        least(
-            cast(1 as decimal(18, 10)),
-            cast(
-                cast(elapsed.elapsed_days as decimal(18, 10))
-                / nullif(elapsed.flight_days, 0) as decimal(18, 10)
-            )
-        ) as elapsed_share,
-        cast(round(
-            elapsed.contracted_impressions
-            * least(
-                cast(1 as decimal(18, 10)),
-                cast(
-                    cast(elapsed.elapsed_days as decimal(18, 10))
-                    / nullif(elapsed.flight_days, 0) as decimal(18, 10)
-                )
-            ), 0
-        ) as bigint) as expected_impressions_to_date
-    from elapsed
-    left join delivered
-        on elapsed.line_item_id = delivered.line_item_id
+    left join stg_campaigns as campaigns
+        on combined.campaign_id = campaigns.campaign_id
+    left join int_advertisers_with_parent as advertisers
+        on campaigns.advertiser_id = advertisers.advertiser_id
 
 ),
 
@@ -167,31 +122,10 @@ final as (
 
     select
         *,
-        cast(
-            cast(delivered_impressions_to_date as decimal(18, 6))
-            / nullif(expected_impressions_to_date, 0) as decimal(18, 6)
-        ) as pacing_ratio,
-        -- greatest() ignores nulls in DuckDB, so greatest(0, null) returns 0.
-        -- Guarding on the contract explicitly keeps "no impression commitment"
-        -- reading as null rather than as a confident zero shortfall.
-        case
-            when contracted_impressions is null then null
-            else greatest(0, expected_impressions_to_date - delivered_impressions_to_date)
-        end as shortfall_to_date_impressions,
-        case
-            when contracted_impressions is null then null
-            else greatest(0, contracted_impressions - delivered_impressions_to_date)
-        end as shortfall_full_contract_impressions,
-        case
-            when contracted_impressions is null then null
-            else cast(
-                cast(greatest(
-                    0, contracted_impressions - delivered_impressions_to_date
-                ) as decimal(18, 6)) / 1000 * rate
-                * (1 - coalesce(discount_rate, 0)) as decimal(18, 6)
-            )
-        end as revenue_at_risk_usd
-    from expectation
+        -- Flights are inclusive of both endpoints, so 2026-04-01 to 2026-06-30
+        -- is 91 days, not 90. An off-by-one here shifts every pacing index.
+        date_diff('day', flight_start, flight_end) + 1 as flight_days
+    from attributed
 
 )
 
