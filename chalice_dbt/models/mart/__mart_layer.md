@@ -1,18 +1,18 @@
 # Marts Layer
 
-The marts layer is the consumption layer. Models here are relationally modeled as
+The mart layer is the consumption layer. Models here are relationally modeled as
 facts and dimensions, named after the entity they describe, and are the objects
 downstream consumers query.
 
 ## Folder structure
 
 Unlike [staging](../staging/__staging_layer.md) and
-[intermediate](../intermediate/__intermediate_layer.md), marts do **not** share one
+[intermediate](../intermediate/__intermediate_layer.md), mart models do **not** share one
 monolithic yml. Documentation is broken out per model, and each model's
 description is a doc block held in its own markdown file.
 
 ```
-models/marts/
+models/mart/
 ├── __mart_layer.md                    # this file
 ├── dim_<entity>.sql              # one file per model
 ├── dim_<entity>.yml              # per-model yml, named after the model
@@ -27,9 +27,9 @@ models/marts/
   model's name.
 - The yml sets `description: '{{ doc("<model_name>") }}'`, pointing at the doc
   block defined in `docs/<model_name>.md`.
-- Materialized as **tables** into the **`mart`** schema — singular, even though
-  the directory is `marts`. Both the materialization and `+schema: mart` are set
-  in `dbt_project.yml`; the `generate_schema_name` override makes the schema
+- Materialized as **tables** into the **`mart`** schema. Both the materialization
+  and `+schema: mart` are set in `dbt_project.yml` under a key that must match
+  this directory's name; the `generate_schema_name` override makes the schema
   resolve to exactly `mart`, with no target prefix. Nothing in this layer builds
   into `main`.
 

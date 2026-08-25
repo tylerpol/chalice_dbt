@@ -11,7 +11,7 @@ Ticket:
 - [ ] `seeds` — source data
 - [ ] `staging` — cosmetic only (casts, renames, parsing). No joins, unions, or filters
 - [ ] `intermediate` — joins, filters, grain changes, business logic
-- [ ] `marts` — assembly and key hashing only
+- [ ] `mart` — assembly and key hashing only
 - [ ] `analyses` — answer queries
 - [ ] `tests` — singular tests
 - [ ] `chat/` — the natural-language app

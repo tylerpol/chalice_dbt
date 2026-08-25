@@ -52,7 +52,7 @@ seeds. On a fresh clone, run dbt from **this directory**
 ```bash
 cd chalice_dbt      # from the repo root
 dbt seed            # load CSV seeds into the raw schema
-dbt run             # build staging, intermediate, and marts
+dbt run             # build staging, intermediate, and mart
 dbt test            # run the test suite
 ```
 
@@ -111,7 +111,7 @@ chalice_dbt/                      ── repo root
     └── models/
         ├── staging/              ── views  → staging schema
         ├── intermediate/         ── views  → intermediate schema
-        └── marts/                ── tables → mart schema
+        └── mart/                 ── tables → mart schema
 ```
 
 ---
@@ -126,7 +126,7 @@ summarizes them.
 | :--- | :--- | :--- |
 | **Staging** | Cosmetic reshaping only — casts, renames, JSON/regex parsing. No joins, unions, or filtering. | [`__staging_layer.md`](models/staging/__staging_layer.md) |
 | **Intermediate** | All real transformation — joins, unions, filtering, aggregation, grain changes. Optional when a mart can read staging directly. | [`__intermediate_layer.md`](models/intermediate/__intermediate_layer.md) |
-| **Marts** | Relational fact and dimension models. Assembly, uniqueness, and key hashing only. | [`__mart_layer.md`](models/marts/__mart_layer.md) |
+| **Mart** | Relational fact and dimension models. Assembly, uniqueness, and key hashing only. | [`__mart_layer.md`](models/mart/__mart_layer.md) |
 
 Cross-cutting conventions:
 
@@ -155,7 +155,7 @@ where table_name = 'dim_advertisers';
 
 Staging and intermediate share one `__<layer>_models.yml` per layer. Marts
 instead use one yml per model, whose description is a `{{ doc() }}` block defined
-in `models/marts/docs/<model_name>.md`.
+in `models/mart/docs/<model_name>.md`.
 
 ---
 

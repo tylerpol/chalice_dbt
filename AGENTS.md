@@ -77,7 +77,7 @@ for that layer:
 | --- | --- |
 | Staging | `chalice_dbt/models/staging/__staging_layer.md` |
 | Intermediate | `chalice_dbt/models/intermediate/__intermediate_layer.md` |
-| Marts | `chalice_dbt/models/marts/__mart_layer.md` |
+| Marts | `chalice_dbt/models/mart/__mart_layer.md` |
 
 Each layer doc is authoritative for that layer's folder structure, naming,
 allowed transformations, documentation requirements, and testing norms. When a
@@ -96,12 +96,12 @@ These hold everywhere and are not layer-specific:
   and are named for what they do.
 - **Every model ends with `select * from final`.**
 - **Flow of complexity:** cosmetic reshaping in staging, real transformation in
-  intermediate, assembly only in marts. If a model is doing work its layer
+  intermediate, assembly only in mart. If a model is doing work its layer
   forbids, move the work rather than bending the rule.
 - **Surrogate keys** are md5 hashes named `<entity>_key`, singular even when the
   model is plural, and are created **only in the mart layer**.
 - **Keys are tested** `unique` and `not_null` at every layer; foreign keys also
-  get `relationships` tests in marts. See the layer docs for specifics.
+  get `relationships` tests in mart. See the layer docs for specifics.
 - **Documentation is mandatory.** Every column carries a `description`, and yml
   column order mirrors the model's column order.
 - **Documentation belongs in yml, never in a comment block above the SQL.** Do
@@ -135,7 +135,7 @@ These hold everywhere and are not layer-specific:
   the user's call; they run it themselves.
 - **Every layer builds into its own schema**, set with `+schema` in
   `dbt_project.yml`: seeds → `raw`, staging → `staging`, intermediate →
-  `intermediate`, marts → `mart` (singular). Custom schemas resolve to their exact name (no
+  `intermediate`, `mart` → `mart`. Custom schemas resolve to their exact name (no
   `<target>_<custom>` prefixing) via the `generate_schema_name` override in
   `macros/`. **Nothing should build into DuckDB's default `main` schema** — if
   models appear there, a `+schema` config is missing.
