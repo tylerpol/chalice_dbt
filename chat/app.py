@@ -6,6 +6,8 @@ it read-only, and this app renders the result. Nothing is sent anywhere.
 
 from __future__ import annotations
 
+import re
+
 import duckdb
 import pandas as pd
 import streamlit as st
@@ -108,6 +110,47 @@ def run_query(sql: str) -> pd.DataFrame:
     return get_connection().execute(safe).fetch_df().head(config.MAX_ROWS)
 
 
+# Shown when a question cannot be expressed as a query at all. Questions about
+# the data *about* the data -- quality, lineage, how a model was built -- are the
+# common case: the mart holds measured values, not commentary on them. A small
+# model will still try, so the app has to land that softly rather than print a
+# binder error at someone who asked a reasonable question.
+NOT_A_QUERY = (
+    "I could not turn that into a query against the warehouse.\n\n"
+    "If you asked about **data quality, lineage, or how the models were built** — "
+    "that is not something this app can measure. The mart holds values, not "
+    "commentary about them. Those notes live in the model documentation: every "
+    "table and column here carries its description from dbt, and the known traps "
+    "are written up there.\n\n"
+    "For anything the warehouse *can* measure, try naming it directly — "
+    "*\"net revenue by brand and month\"*, *\"which CPM line items are pacing "
+    "worst\"*, or *\"daily impressions over time\"*."
+)
+
+
+# Questions about the data rather than about the numbers -- quality, lineage,
+# how a model was built -- have no answer in the mart, but a small model will
+# compose something plausible anyway and title it convincingly. This does not
+# block them: "which line items have a null campaign_key" is a real, answerable
+# question that uses the same vocabulary. It attaches a caveat instead, so a
+# reader is never left believing a revenue chart was an assessment of data
+# quality. Deliberately narrow -- "null" and "duplicate" are not triggers.
+META_QUESTION = re.compile(
+    r"\b(data quality|quality (issue|problem|concern)|lineage|provenance"
+    r"|trustworth|worry about|be concerned|anything wrong"
+    r"|(issue|problem)s? with the data"
+    r"|how (was|were|is|are) (it|this|these|the) \w+ (built|created|made))",
+    re.IGNORECASE,
+)
+
+META_CAVEAT = (
+    "⚠️ This app measures values in the mart; it cannot assess data quality, "
+    "completeness or lineage. Treat the result above as a number it could "
+    "compute, not as an answer to that question — the documented data caveats "
+    "live in the model documentation, not in the data."
+)
+
+
 def render_turn(turn: dict, index: int) -> None:
     """Render one completed exchange.
 
@@ -122,12 +165,19 @@ def render_turn(turn: dict, index: int) -> None:
     with st.chat_message("assistant"):
         if turn.get("error"):
             st.error(turn["error"])
+            if turn.get("suggestion"):
+                st.caption(turn["suggestion"])
+            if turn.get("error_detail"):
+                with st.expander("Technical detail"):
+                    st.code(turn["error_detail"], language="text")
             if turn.get("sql"):
                 with st.expander("Generated SQL"):
                     st.code(turn["sql"], language="sql")
             return
 
         st.markdown(f"**{turn['title']}**")
+        if turn.get("caveat"):
+            st.warning(turn["caveat"])
         if turn.get("explanation"):
             st.caption(turn["explanation"])
         if turn.get("repaired"):
@@ -153,6 +203,14 @@ def render_turn(turn: dict, index: int) -> None:
 
 
 def answer(question: str, catalogue: str) -> dict:
+    turn = _answer(question, catalogue)
+    # A question the mart cannot answer still gets an answer; label it as one.
+    if not turn.get("error") and META_QUESTION.search(question):
+        turn["caveat"] = META_CAVEAT
+    return turn
+
+
+def _answer(question: str, catalogue: str) -> dict:
     turn: dict = {"question": question}
 
     # Semantic path first. Where the question maps onto defined measures, the
@@ -293,8 +351,16 @@ def answer(question: str, catalogue: str) -> dict:
     try:
         df = run_query(spec.sql)
     except UnsafeSQL as exc:
-        # A refusal is a policy decision, not a mistake to retry.
+        # A refusal is a policy decision, not a mistake to retry. It is also the
+        # usual landing place for a question about the data rather than the
+        # numbers -- the model reaches for information_schema -- so say what the
+        # app can answer instead of stopping at the refusal.
         turn["error"] = str(exc)
+        turn["suggestion"] = (
+            "Questions about data quality, lineage, or how the models were built "
+            "cannot be answered from the mart. Try naming a measure instead, for "
+            "example \"net revenue by brand and month\"."
+        )
         return turn
     except Exception as exc:  # noqa: BLE001
         # Database errors are specific and actionable ("column X not found in
@@ -320,8 +386,8 @@ def answer(question: str, catalogue: str) -> dict:
             return turn
         except Exception as retry_exc:  # noqa: BLE001
             turn["sql"] = spec.sql
-            turn["error"] = (
-                f"The query failed, and the retry also failed.\n\n"
+            turn["error"] = NOT_A_QUERY
+            turn["error_detail"] = (
                 f"First error: {first_error}\n\nRetry error: {retry_exc}"
             )
             return turn

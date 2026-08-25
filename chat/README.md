@@ -10,18 +10,37 @@ No API key, no account, nothing sent anywhere.
 
 ## Install
 
+Double-click **`Install.command`** (macOS) or **`Install.bat`** (Windows), then
+**`Start.command`** / **`Start.bat`** to run it. Or from a terminal:
+
 ```bash
 cd chat
 ./install.sh
 ```
 
-The installer walks six steps with a progress bar and downloads the model
-(~2GB, with Ollama's own live download bar). It needs:
+The double-click wrappers exist because Finder opens a `.sh` in a text editor
+rather than running it, and Windows refuses to run a `.ps1` on double-click at
+all. They only hand off to the real scripts.
 
-- **Python 3.9+**
-- **Ollama** — the installer offers to install it on Linux; on macOS grab it from
-  [ollama.com/download](https://ollama.com/download) first
+The installer walks six steps with a progress bar and downloads the model
+(~2GB, with Ollama's own live download bar).
+
+**Ollama is installed for you if it is missing** — on macOS, Linux and Windows
+alike. You are asked first, and told what will happen; `--yes` skips the
+question for an unattended run. It needs:
+
+- **Python 3.9+** — already present on macOS (via `xcode-select --install`) and
+  on most Linux distributions. On Windows, `install_windows.ps1` installs it too.
 - **~3GB disk** and **~3GB free RAM** while running
+
+| Platform | Ollama comes from |
+| :--- | :--- |
+| macOS | `Ollama.app` unpacked into `/Applications` — no admin password |
+| Linux | the official `ollama.com/install.sh` (uses sudo) |
+| Windows | winget, falling back to the official silent installer |
+
+If you already have Ollama, yours is used and nothing is installed. Set
+`CHALICE_OLLAMA` to point at a copy in an unusual location.
 
 ## Run
 
@@ -102,6 +121,8 @@ read it. This is a tool for exploring, not a system of record.
 | `schema_context.py` | Pulls table/column comments out of DuckDB |
 | `charts.py` | Chart spec → Plotly, with fallback to a table |
 | `config.py` | Model, port, paths — change the model here |
+| `_common.sh` / `_common.ps1` | Shared script helpers — locating and starting Ollama |
+| `*.command` / `*.bat` | Double-click wrappers around the install/start/uninstall scripts |
 
 ## Configuration
 
@@ -122,7 +143,10 @@ Checked in order:
 
 ## Troubleshooting
 
-**"Cannot reach Ollama"** — start it with `ollama serve`, or re-run `./install.sh`.
+**"Cannot reach Ollama"** — re-run `./install.sh`; it starts the server for you.
+If Ollama lives somewhere the scripts do not look, set `CHALICE_OLLAMA` to the
+full path of the binary (on macOS that is inside the app bundle, at
+`/Applications/Ollama.app/Contents/Resources/ollama`).
 
 **"Could not read the database"** — a SQL IDE has it open for writing. DuckDB
 allows one writer at a time; disconnect that client and reload.

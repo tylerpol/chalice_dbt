@@ -15,6 +15,9 @@
 version: 1
 
 # The fact tables a measure can be drawn from, and what one of their rows means.
+# A measure's `expr` refers to its source table as `base`, which is the alias the
+# composer gives it -- qualifying is what keeps a dimension's lookup join from
+# making a column name ambiguous.
 sources:
   delivery:
     table: mart.fct_delivery_daily
@@ -22,12 +25,14 @@ sources:
 
   adjustments:
     table: mart.fct_billing_adjustments
-    grain: one row per campaign per billing month
+    grain: >
+      one row per adjustment -- a campaign and month can carry several, so this
+      is finer than the campaign x month the business rule states
 
   line_items:
-    table: mart.dim_line_items
+    table: mart.fct_line_items
     grain: >
-      one row per line item, already carrying its pacing position as of
+      one row per line item per as-of date, carrying its pacing position as of
       2026-06-30 -- these are not daily figures and must not be summed per day
 
 # Dimensions name the column that carries them in each source. A dimension a
@@ -57,6 +62,7 @@ dimensions:
     columns:
       delivery: parent_advertiser_key
       adjustments: parent_advertiser_key
+      line_items: parent_advertiser_key
     lookup:
       table: mart.dim_parent_advertisers
       key: parent_advertiser_key
@@ -71,6 +77,7 @@ dimensions:
     columns:
       delivery: advertiser_key
       adjustments: advertiser_key
+      line_items: advertiser_key
     lookup:
       table: mart.dim_advertisers
       key: advertiser_key
@@ -96,6 +103,7 @@ dimensions:
     columns:
       delivery: campaign_key
       adjustments: campaign_key
+      line_items: campaign_key
     lookup:
       table: mart.dim_campaigns
       key: campaign_key
@@ -112,9 +120,17 @@ dimensions:
 
   - name: pricing_model
     label: Pricing model
-    description: CPM or FLAT_FEE. Only line items carry it.
+    description: >
+      CPM or FLAT_FEE. A term of the line item contract, so it is read from
+      dim_line_items rather than carried on either fact.
     columns:
-      line_items: pricing_model
+      delivery: line_item_key
+      line_items: line_item_key
+    lookup:
+      table: mart.dim_line_items
+      key: line_item_key
+      label: pricing_model
+      null_label: UNMAPPED (line item not in the source extract)
 
   - name: reason
     label: Adjustment reason
@@ -150,13 +166,13 @@ measures:
     label: Gross revenue
     description: Revenue before discount.
     source: delivery
-    expr: sum(gross_revenue_usd)
+    expr: sum(base.gross_revenue_usd)
 
   - name: discounts
     label: Discounts
     description: Discount taken off gross revenue. Reported positive.
     source: delivery
-    expr: sum(discount_usd)
+    expr: sum(base.discount_usd)
 
   - name: net_revenue
     label: Net revenue
@@ -164,7 +180,7 @@ measures:
       Recognised revenue, gross less discount. This is revenue BEFORE billing
       adjustments — use billed_revenue for what is actually billable.
     source: delivery
-    expr: sum(net_revenue_usd)
+    expr: sum(base.net_revenue_usd)
 
   - name: adjustments
     label: Billing adjustments
@@ -172,7 +188,7 @@ measures:
       Credits, rebates, makegoods and fees at campaign and month. Net negative
       across the dataset; added after the discount.
     source: adjustments
-    expr: sum(adjustment_usd)
+    expr: sum(base.adjustment_usd)
 
   - name: billed_revenue
     label: Billed revenue
@@ -189,18 +205,18 @@ measures:
       trends over time and for impressions by brand, campaign or market.
       Contains negative correction rows.
     source: delivery
-    expr: sum(impressions)
+    expr: sum(base.impressions)
 
   - name: clicks
     label: Clicks
     source: delivery
-    expr: sum(clicks)
+    expr: sum(base.clicks)
 
   - name: media_cost
     label: Media cost
     description: What delivery cost. NOT revenue — never add the two together.
     source: delivery
-    expr: sum(media_cost_usd)
+    expr: sum(base.media_cost_usd)
 
   - name: impressions_to_date
     label: Impressions delivered to date (pacing only)
@@ -210,19 +226,19 @@ measures:
       month. For impressions over time, or impressions by anything other than a
       line item, use `impressions` instead.
     source: line_items
-    expr: sum(delivered_impressions_to_date)
+    expr: sum(base.delivered_impressions_to_date)
 
   - name: expected_impressions
     label: Expected impressions
     description: The contract pro-rated to the elapsed share of the flight.
     source: line_items
-    expr: sum(expected_impressions_to_date)
+    expr: sum(base.expected_impressions_to_date)
 
   - name: contracted_impressions
     label: Contracted impressions
     description: The full impression commitment. Null for FLAT_FEE line items.
     source: line_items
-    expr: sum(contracted_impressions)
+    expr: sum(base.contracted_impressions)
 
   - name: revenue_at_risk
     label: Revenue at risk
@@ -230,7 +246,7 @@ measures:
       Revenue never earned if the shortfall against full contract is not made
       up, net of discount. Use this to rank delivery risk -- dollars, not ratio.
     source: line_items
-    expr: sum(revenue_at_risk_usd)
+    expr: sum(base.revenue_at_risk_usd)
 
   - name: shortfall_to_date
     label: Shortfall to date (impressions)
@@ -238,7 +254,7 @@ measures:
       Impressions short of what the contract expects BY the as-of date. This is
       what "behind" means, and it is what pacing_ratio measures.
     source: line_items
-    expr: sum(shortfall_to_date_impressions)
+    expr: sum(base.shortfall_to_date_impressions)
 
   - name: shortfall_full_contract
     label: Shortfall vs full contract (impressions)
@@ -248,7 +264,7 @@ measures:
       counts flight that has not elapsed. revenue_at_risk is derived from this,
       so for a line item still in flight it is an upper bound, not a realised miss.
     source: line_items
-    expr: sum(shortfall_full_contract_impressions)
+    expr: sum(base.shortfall_full_contract_impressions)
 
   - name: pacing_ratio
     label: Pacing ratio

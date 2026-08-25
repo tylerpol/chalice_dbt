@@ -3,7 +3,7 @@
 -- Plain SQL. Run it directly against the DuckDB file; nothing here is templated.
 --
 -- Same answer as analyses/mart/1b_delivery_risk_mart.sql, built from the raw seeds.
--- The pacing arithmetic the warehouse holds on dim_line_items has to be
+-- The pacing arithmetic the warehouse holds on fct_line_items has to be
 -- rebuilt here:
 --   * flights are inclusive of both endpoints (2026-04-01 to 2026-06-30 is 91
 --     days, not 90) -- an off-by-one moves every ratio

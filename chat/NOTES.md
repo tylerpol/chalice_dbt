@@ -106,10 +106,15 @@ Also fixed along the way:
 These are real properties of the source data, documented in the mart doc blocks
 and repeated in `AGENTS.md` because they change what correct SQL looks like:
 
-- 20 delivery rows reference `LI-5999`, absent from `dim_line_items` — so an
-  inner join silently drops ~$1,860 of spend. Hence "prefer left joins".
+- Some delivery reaches no campaign, and therefore no advertiser or brand.
+  `LI-5105` and `LI-5106` carry no `campaign_id`, and `LI-5999` (20 rows,
+  $1,859.74 of media cost) is absent from the source line-item extract entirely.
+  An inner join to `dim_campaigns` silently drops all three — 202 rows,
+  $5,828.60 of media cost and $33,666.19 of revenue. Hence "prefer left joins".
   **"Total media cost by market" correctly returns a `None` market row for
-  $5,828.60 — that is this orphaned spend, not a bug.**
+  $5,828.60 — that is this unattributed spend, not a bug.**
+  `dim_line_items` itself is safe to inner join: it carries an inferred member
+  for `LI-5999`, so the delivery fact's `line_item_key` always resolves.
 - `billing_month` disagrees with `event_date_local` on 24 rows.
 - Negative impressions and clicks > impressions exist; guard rate denominators.
 - Five timezones, so summing by local date across markets mixes them.

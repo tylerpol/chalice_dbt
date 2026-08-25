@@ -187,7 +187,18 @@ def ask(
 
     # A short rolling window lets follow-ups like "now by market" work without
     # letting context grow unbounded.
+    #
+    # Only SQL the model itself wrote is replayed. Semantic-path SQL is composed
+    # by the application from measures.yml: it carries CTEs named `unioned` and
+    # `combined` and `grouping()` flags like `brand_is_total` that the model
+    # never authored. Handed back as "here is what you wrote last time" it gets
+    # imitated rather than understood, and the imitation is broken -- a
+    # `from combined` with no such CTE, or a `brand_is_total` the inner query
+    # never selected. Failed turns are skipped for the same reason: a broken
+    # exemplar teaches the break.
     for turn in (history or [])[-3:]:
+        if turn.get("semantic") or turn.get("error"):
+            continue
         if turn.get("sql"):
             messages.append({"role": "user", "content": turn["question"]})
             messages.append({"role": "assistant", "content": turn["sql"]})

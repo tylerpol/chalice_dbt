@@ -5,6 +5,8 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
+# shellcheck source=_common.sh
+. ./_common.sh
 
 PORT="${CHALICE_PORT:-8501}"
 BOLD=$'\033[1m'; RED=$'\033[31m'; DIM=$'\033[2m'; RESET=$'\033[0m'
@@ -15,13 +17,20 @@ BOLD=$'\033[1m'; RED=$'\033[31m'; DIM=$'\033[2m'; RESET=$'\033[0m'
 if [ -d .venv/bin ]; then VENV_BIN=".venv/bin"; else VENV_BIN=".venv/Scripts"; fi
 
 # Ollama must be up; starting it here means the user never has to think about it.
-if ! curl -fsS http://localhost:11434/api/tags >/dev/null 2>&1; then
+# It is resolved rather than assumed to be on PATH: install.sh may have put it in
+# an .app bundle on macOS or a per-user directory on Windows.
+if ! chalice_ollama_up; then
+  OLLAMA="$(chalice_find_ollama || true)"
+  if [ -z "$OLLAMA" ]; then
+    printf "\n  ${RED}Ollama is not installed.${RESET} Run 'bash install.sh' first.\n\n" >&2
+    exit 1
+  fi
   printf "  ${DIM}Starting Ollama…${RESET}\n"
-  nohup ollama serve >/dev/null 2>&1 &
-  for _ in $(seq 1 30); do
-    sleep 1
-    curl -fsS http://localhost:11434/api/tags >/dev/null 2>&1 && break
-  done
+  chalice_start_ollama "$OLLAMA" || {
+    printf "\n  ${RED}Ollama did not come up on port 11434.${RESET}\n"
+    printf "  Try starting it yourself: ${BOLD}%s serve${RESET}\n\n" "$OLLAMA" >&2
+    exit 1
+  }
 fi
 
 printf "\n  ${BOLD}Chalice Chat${RESET} → http://localhost:%s\n" "$PORT"

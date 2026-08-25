@@ -10,9 +10,9 @@ layer's `__[layer]_layer.md`. This file covers only business logic.
 
 ## Where each rule is implemented
 
-No rule gets its own mart. The mart stays at the lowest grain the data supports —
-delivery day for facts, line item for the dimension — and every summary above
-that is a group-by. Helper columns exist to make those group-bys trivial.
+Marts stay at the lowest grain the data supports — delivery day, line item, and
+line item per as-of date — and every summary above that is a group-by. No rule
+gets a pre-aggregated mart; helper columns exist to make those group-bys trivial.
 
 | # | Rule | Implemented in | Summarise via |
 |---|------|----------------|---------------|
@@ -21,10 +21,10 @@ that is a group-by. Helper columns exist to make those group-bys trivial.
 | 3 | Discounts apply to gross revenue | `int_delivery_daily_revenue`; units resolved in `int_line_items_normalized` | `discount_usd`, `net_revenue_usd` |
 | 4 | Adjustments at campaign and month level, added after discounted revenue | not modelled — applied at report time | join `fct_billing_adjustments` on `campaign_id` + month |
 | 5 | Reporting month is the month delivery actually occurred | `int_delivery_daily_revenue` | `fct_delivery_daily.reporting_month` |
-| 6 | Pacing vs contract, pro-rated to elapsed flight as of 2026-06-30 | `int_line_items_normalized` | `dim_line_items.expected_impressions_to_date` |
+| 6 | Pacing vs contract, pro-rated to elapsed flight as of 2026-06-30 | `int_line_items_pacing` | `fct_line_items.pacing_ratio`, `revenue_at_risk_usd` |
 
 Worked queries for the monthly, campaign-billing, and pacing summaries are in the
-`fct_delivery_daily` and `dim_line_items` doc blocks.
+`fct_delivery_daily`, `dim_line_items` and `fct_line_items` doc blocks.
 
 ---
 

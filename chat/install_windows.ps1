@@ -4,53 +4,131 @@
 # the native Windows path, for a reviewer who has neither.
 #
 #   powershell -ExecutionPolicy Bypass -File install_windows.ps1
+#   powershell -ExecutionPolicy Bypass -File install_windows.ps1 -Yes
 #
 # The ExecutionPolicy flag is needed because Windows blocks unsigned scripts by
 # default; it applies to this invocation only and changes nothing permanently.
+#
+# Python and Ollama are installed for you if they are missing. Both go in per
+# user, so neither triggers an administrator prompt. -Yes skips the questions.
+
+param([switch]$Yes)
 
 $ErrorActionPreference = 'Stop'
 Set-Location -Path $PSScriptRoot
+. (Join-Path $PSScriptRoot '_common.ps1')
 
-$Model = if ($env:CHALICE_MODEL) { $env:CHALICE_MODEL } else { 'qwen2.5-coder:3b' }
-$Venv  = '.venv'
+$Model      = if ($env:CHALICE_MODEL) { $env:CHALICE_MODEL } else { 'qwen2.5-coder:3b' }
+$Venv       = '.venv'
 $VenvPython = Join-Path $Venv 'Scripts\python.exe'
+$PythonVersion = '3.12.10'   # pinned for the python.org fallback only
 
 function Step($n, $text) { Write-Host "`n[$n/5] $text" -ForegroundColor Cyan }
 function Ok($text)       { Write-Host "      $text" -ForegroundColor Green }
+function Info($text)     { Write-Host "      $text" -ForegroundColor DarkGray }
 function Fail($text)     { Write-Host "`n  $text`n" -ForegroundColor Red; exit 1 }
 
-function Test-Ollama {
-    try   { Invoke-RestMethod -Uri 'http://localhost:11434/api/tags' -TimeoutSec 2 | Out-Null; return $true }
-    catch { return $false }
+function Confirm-Step($question) {
+    if ($Yes) { return $true }
+    $reply = Read-Host "  $question [y/N]"
+    return ($reply -match '^[yY]')
+}
+
+function Install-Python {
+    # winget first: it is the supported route and handles PATH properly.
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Info 'Installing Python 3.12 via winget...'
+        try {
+            & winget install --id Python.Python.3.12 --exact --source winget --scope user `
+                --accept-package-agreements --accept-source-agreements --disable-interactivity
+        } catch {
+            Info "winget failed: $($_.Exception.Message)"
+        }
+        Update-PathFromRegistry
+        if (Find-Python) { return }
+        Info 'winget did not produce a usable Python; falling back to python.org.'
+    }
+
+    $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'amd64' }
+    $url  = "https://www.python.org/ftp/python/$PythonVersion/python-$PythonVersion-$arch.exe"
+    $out  = Join-Path $env:TEMP "python-$PythonVersion-$arch.exe"
+
+    Info "Downloading Python $PythonVersion ($arch, about 25MB)..."
+    try { Get-RemoteFile $url $out } catch { Fail "Downloading Python failed: $($_.Exception.Message)" }
+
+    Info 'Running the installer (per user, no administrator prompt)...'
+    # PrependPath puts it on PATH for future terminals; this one is refreshed below.
+    $proc = Start-Process -FilePath $out -Wait -PassThru -ArgumentList @(
+        '/quiet', 'InstallAllUsers=0', 'PrependPath=1', 'Include_pip=1', 'Include_test=0'
+    )
+    Remove-Item $out -Force -ErrorAction SilentlyContinue
+
+    # 3010 is "installed, wants a reboot" -- the install itself succeeded.
+    if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
+        Fail "The Python installer exited with code $($proc.ExitCode)."
+    }
+    Update-PathFromRegistry
+}
+
+function Install-Ollama {
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Info 'Installing Ollama via winget...'
+        try {
+            & winget install --id Ollama.Ollama --exact --source winget `
+                --accept-package-agreements --accept-source-agreements --disable-interactivity
+        } catch {
+            Info "winget failed: $($_.Exception.Message)"
+        }
+        Update-PathFromRegistry
+        if (Find-Ollama) { return }
+        Info 'winget did not produce a usable Ollama; falling back to the direct download.'
+    }
+
+    $out = Join-Path $env:TEMP 'OllamaSetup.exe'
+    Info 'Downloading the Ollama installer (about 1.5GB) -- this is the slow part...'
+    try { Get-RemoteFile 'https://ollama.com/download/OllamaSetup.exe' $out }
+    catch { Fail "Downloading Ollama failed: $($_.Exception.Message)" }
+
+    Info 'Running it silently...'
+    # Inno Setup flags; verified against the installer this URL serves.
+    $proc = Start-Process -FilePath $out -Wait -PassThru `
+        -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART')
+    Remove-Item $out -Force -ErrorAction SilentlyContinue
+
+    if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
+        Fail "The Ollama installer exited with code $($proc.ExitCode)."
+    }
+    Update-PathFromRegistry
+
+    # Inno Setup can return before the files have finished landing.
+    for ($i = 0; $i -lt 60; $i++) {
+        if (Find-Ollama) { break }
+        Start-Sleep -Seconds 2
+    }
 }
 
 # 1 ------------------------------------------------------------------- python
 Step 1 'Checking Python'
-$python = $null
-foreach ($candidate in @('py -3.12', 'py -3.11', 'py -3.10', 'py -3', 'python')) {
-    $parts = $candidate.Split(' ')
-    $exe   = $parts[0]
-    if (-not (Get-Command $exe -ErrorAction SilentlyContinue)) { continue }
-    $args = @()
-    if ($parts.Count -gt 1) { $args += $parts[1] }
-    $args += @('-c', 'import sys; raise SystemExit(0 if sys.version_info >= (3,9) else 1)')
-    & $exe @args 2>$null
-    if ($LASTEXITCODE -eq 0) { $python = $candidate; break }
-}
+$python = Find-Python
 if (-not $python) {
-    Fail "Python 3.9+ is required but was not found. Install it from https://python.org (tick 'Add Python to PATH') and re-run."
+    Write-Host "`n  Python 3.9+ was not found. It is needed to run the app." -ForegroundColor Yellow
+    Info 'It installs for this user only, so there is no administrator prompt.'
+    if (-not (Confirm-Step 'Install Python 3.12 now?')) {
+        Fail "Python 3.9+ is required. Install it from https://python.org (tick 'Add Python to PATH') and re-run."
+    }
+    Install-Python
+    $python = Find-Python
+    if (-not $python) {
+        Fail "Python was installed but cannot be found. Close this window, open a new PowerShell, and re-run this script."
+    }
 }
-Ok "Python found ($python)"
+$pythonVersionText = (& $python.Exe @($python.Pre + @('--version')) 2>&1) -join ' '
+Ok "Python found ($pythonVersionText)"
 
 # 2 --------------------------------------------------------------------- venv
 Step 2 'Creating virtual environment'
 if (-not (Test-Path $Venv)) {
-    $parts = $python.Split(' ')
-    $exe   = $parts[0]
-    $args  = @()
-    if ($parts.Count -gt 1) { $args += $parts[1] }
-    $args += @('-m', 'venv', $Venv)
-    & $exe @args
+    & $python.Exe @($python.Pre + @('-m', 'venv', $Venv))
     if ($LASTEXITCODE -ne 0) { Fail "Could not create a virtual environment in $Venv" }
 }
 if (-not (Test-Path $VenvPython)) { Fail "The virtual environment looks incomplete -- no python at $VenvPython" }
@@ -67,26 +145,32 @@ Ok 'Python packages installed'
 
 # 4 ------------------------------------------------------------------- ollama
 Step 4 'Checking Ollama'
-if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
-    Write-Host "`n  Ollama is not installed. It runs the language model locally." -ForegroundColor Yellow
-    Fail 'Install it from https://ollama.com/download, then re-run this script.'
+$ollama = Find-Ollama
+if (-not $ollama) {
+    Write-Host "`n  Ollama is not installed. It runs the language model on this machine." -ForegroundColor Yellow
+    Info 'About 1.5GB, installed for this user only.'
+    if (-not (Confirm-Step 'Install Ollama now?')) {
+        Fail 'Ollama is required. Install it from https://ollama.com/download and re-run.'
+    }
+    Install-Ollama
+    $ollama = Find-Ollama
+    if (-not $ollama) {
+        Fail "Ollama was installed but cannot be found. Close this window, open a new PowerShell, and re-run this script.`n  Or set CHALICE_OLLAMA to the full path of ollama.exe."
+    }
 }
-if (-not (Test-Ollama)) {
-    Write-Host '      Starting Ollama...' -ForegroundColor DarkGray
-    Start-Process -FilePath 'ollama' -ArgumentList 'serve' -WindowStyle Hidden
-    for ($i = 0; $i -lt 30; $i++) { Start-Sleep -Seconds 1; if (Test-Ollama) { break } }
+if (-not (Start-OllamaServer $ollama)) {
+    Fail "Ollama is installed at $ollama but is not responding on http://localhost:11434.`n  Start it manually with: $ollama serve"
 }
-if (-not (Test-Ollama)) { Fail 'Ollama is installed but not responding on http://localhost:11434.' }
 Ok 'Ollama running'
 
 # 5 -------------------------------------------------------------------- model
 Step 5 "Downloading the language model ($Model, about 1.9 GB)"
-$installed = (& ollama list) -join "`n"
+$installed = (& $ollama list) -join "`n"
 if ($installed -match [regex]::Escape($Model)) {
     Ok 'Model already present'
 } else {
-    Write-Host '      This is the one large download. Progress is shown by Ollama.' -ForegroundColor DarkGray
-    & ollama pull $Model
+    Info 'This is the one large download. Progress is shown by Ollama.'
+    & $ollama pull $Model
     if ($LASTEXITCODE -ne 0) { Fail "Downloading $Model failed. Check your connection and re-run." }
     Ok 'Model downloaded'
 }
