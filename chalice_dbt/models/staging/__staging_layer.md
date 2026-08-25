@@ -70,5 +70,5 @@ mirrors column order in the model.
 ## Downstream
 
 Staging models feed [intermediate](../intermediate/__intermediate_layer.md) models, and
-may be referenced directly by [mart](../marts/__mart_layer.md) models when no
+may be referenced directly by [mart](../mart/__mart_layer.md) models when no
 intermediate step is warranted.

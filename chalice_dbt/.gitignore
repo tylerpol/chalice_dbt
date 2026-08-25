@@ -3,7 +3,3 @@ target/
 dbt_packages/
 logs/
 .env
-
-# Local dbt connection profile. DuckDB is a file, so this is machine-specific
-# rather than shared; the packaged submission copies one in.
-profiles.yml
