@@ -10,12 +10,13 @@ No API key, no account, nothing sent anywhere.
 
 ## Install
 
-Double-click **`Install.command`** (macOS) or **`Install.bat`** (Windows), then
-**`Start.command`** / **`Start.bat`** to run it. Or from a terminal:
+Double-click **`Install_macOS.command`** or **`Install_Windows.bat`**, then
+**`Start_macOS.command`** / **`Start_Windows.bat`** to run it. Every
+double-click file names its platform. Or from a terminal:
 
 ```bash
 cd chat
-./install.sh
+bash scripts/install.sh
 ```
 
 The double-click wrappers exist because Finder opens a `.sh` in a text editor
@@ -45,7 +46,7 @@ If you already have Ollama, yours is used and nothing is installed. Set
 ## Run
 
 ```bash
-./start.sh
+bash scripts/start.sh
 ```
 
 Opens <http://localhost:8501> in your browser.
@@ -53,7 +54,7 @@ Opens <http://localhost:8501> in your browser.
 ## Uninstall
 
 ```bash
-./uninstall.sh
+bash scripts/uninstall.sh
 ```
 
 Removes the model (~2GB) and the Python environment. **Leaves Ollama itself
@@ -121,18 +122,18 @@ read it. This is a tool for exploring, not a system of record.
 | `schema_context.py` | Pulls table/column comments out of DuckDB |
 | `charts.py` | Chart spec → Plotly, with fallback to a table |
 | `config.py` | Model, port, paths — change the model here |
-| `_common.sh` / `_common.ps1` | Shared script helpers — locating and starting Ollama |
-| `*.command` / `*.bat` | Double-click wrappers around the install/start/uninstall scripts |
+| `scripts/` | The install, start and uninstall scripts, plus their shared helpers |
+| `*_macOS.command` / `*_Windows.bat` | Double-click wrappers, one set per platform |
 
 ## Configuration
 
 ```bash
-CHALICE_MODEL=qwen2.5-coder:7b ./start.sh   # larger, more accurate
-CHALICE_PORT=8600 ./start.sh                # different port
+CHALICE_MODEL=qwen2.5-coder:7b bash scripts/start.sh   # larger, more accurate
+CHALICE_PORT=8600 bash scripts/start.sh                # different port
 ```
 
 If answers are consistently poor, `qwen2.5-coder:7b` (~4.7GB) is a drop-in
-upgrade — set it before running `install.sh` and it will be downloaded instead.
+upgrade — set it before running `scripts/install.sh` and it will be downloaded instead.
 
 ## Database location
 
@@ -143,7 +144,7 @@ Checked in order:
 
 ## Troubleshooting
 
-**"Cannot reach Ollama"** — re-run `./install.sh`; it starts the server for you.
+**"Cannot reach Ollama"** — re-run `bash scripts/install.sh`; it starts the server for you.
 If Ollama lives somewhere the scripts do not look, set `CHALICE_OLLAMA` to the
 full path of the binary (on macOS that is inside the app bundle, at
 `/Applications/Ollama.app/Contents/Resources/ollama`).

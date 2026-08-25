@@ -3,8 +3,8 @@
 # The bash scripts cover macOS, Linux, and Windows under WSL or Git Bash. This is
 # the native Windows path, for a reviewer who has neither.
 #
-#   powershell -ExecutionPolicy Bypass -File install_windows.ps1
-#   powershell -ExecutionPolicy Bypass -File install_windows.ps1 -Yes
+#   powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1
+#   powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1 -Yes
 #
 # The ExecutionPolicy flag is needed because Windows blocks unsigned scripts by
 # default; it applies to this invocation only and changes nothing permanently.
@@ -15,8 +15,10 @@
 param([switch]$Yes)
 
 $ErrorActionPreference = 'Stop'
-Set-Location -Path $PSScriptRoot
+# This script lives in scripts\ but operates on the app root one level up,
+# where the virtual environment, requirements.txt and app.py live.
 . (Join-Path $PSScriptRoot '_common.ps1')
+Set-Location -Path (Split-Path $PSScriptRoot -Parent)
 
 $Model      = if ($env:CHALICE_MODEL) { $env:CHALICE_MODEL } else { 'qwen2.5-coder:3b' }
 $Venv       = '.venv'
@@ -182,4 +184,4 @@ if (-not (Test-Path 'data\chalice.duckdb')) {
 }
 
 Write-Host "`n  Installed. Start it with:`n" -ForegroundColor Green
-Write-Host "      powershell -ExecutionPolicy Bypass -File start_windows.ps1`n"
+Write-Host "      powershell -ExecutionPolicy Bypass -File scripts\start_windows.ps1`n"

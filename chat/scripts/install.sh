@@ -7,14 +7,18 @@
 # machine. The only thing installed outside this folder is Ollama, and you are
 # asked before that happens.
 #
-#   bash install.sh          ask before installing Ollama
-#   bash install.sh --yes    assume yes (for an unattended run)
+#   bash scripts/install.sh          ask before installing Ollama
+#   bash scripts/install.sh --yes    assume yes (for an unattended run)
 #
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")"
+# This script lives in scripts/ but every path it touches -- the virtual
+# environment, requirements.txt, app.py, data/ -- belongs to the app root one
+# level up. Resolve both explicitly rather than depending on where it was run from.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_common.sh
-. ./_common.sh
+. "$SCRIPT_DIR/_common.sh"
+cd "$SCRIPT_DIR/.."
 
 MODEL="${CHALICE_MODEL:-qwen2.5-coder:3b}"
 VENV=".venv"
@@ -147,7 +151,7 @@ if [ -z "$PYTHON" ]; then
       fail "Python 3.9+ is required but was not found.
     Git Bash cannot install it for you. Either use the native Windows installer,
     which does it automatically:
-        powershell -ExecutionPolicy Bypass -File install_windows.ps1
+        powershell -ExecutionPolicy Bypass -File scripts/install_windows.ps1
     or install Python from https://python.org (tick 'Add Python to PATH')." ;;
     *)
       fail "Python 3.9+ is required but was not found.
@@ -232,6 +236,6 @@ if [ ! -f data/chalice.duckdb ] && [ ! -f ../duckdb/chalice.duckdb ]; then
 fi
 
 printf "\n  ${GREEN}${BOLD}Done.${RESET} Start the app with:\n\n"
-printf "      ${BOLD}bash start.sh${RESET}\n\n"
+printf "      ${BOLD}bash scripts/start.sh${RESET}\n\n"
 printf "  It opens http://localhost:%s in your browser.\n" "${CHALICE_PORT:-8501}"
-printf "  To remove the model and environment later: ${BOLD}bash uninstall.sh${RESET}\n\n"
+printf "  To remove the model and environment later: ${BOLD}bash scripts/uninstall.sh${RESET}\n\n"

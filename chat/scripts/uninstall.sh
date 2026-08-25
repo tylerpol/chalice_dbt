@@ -8,9 +8,13 @@
 #
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")"
+# This script lives in scripts/ but every path it touches -- the virtual
+# environment, requirements.txt, app.py, data/ -- belongs to the app root one
+# level up. Resolve both explicitly rather than depending on where it was run from.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_common.sh
-. ./_common.sh
+. "$SCRIPT_DIR/_common.sh"
+cd "$SCRIPT_DIR/.."
 
 MODEL="${CHALICE_MODEL:-qwen2.5-coder:3b}"
 OLLAMA="$(chalice_find_ollama || true)"

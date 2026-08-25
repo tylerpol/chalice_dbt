@@ -4,14 +4,18 @@
 #
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")"
+# This script lives in scripts/ but every path it touches -- the virtual
+# environment, requirements.txt, app.py, data/ -- belongs to the app root one
+# level up. Resolve both explicitly rather than depending on where it was run from.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_common.sh
-. ./_common.sh
+. "$SCRIPT_DIR/_common.sh"
+cd "$SCRIPT_DIR/.."
 
 PORT="${CHALICE_PORT:-8501}"
 BOLD=$'\033[1m'; RED=$'\033[31m'; DIM=$'\033[2m'; RESET=$'\033[0m'
 
-[ -d .venv ] || { printf "\n  ${RED}Not installed yet.${RESET} Run 'bash install.sh' first.\n\n" >&2; exit 1; }
+[ -d .venv ] || { printf "\n  ${RED}Not installed yet.${RESET} Run 'bash scripts/install.sh' first.\n\n" >&2; exit 1; }
 
 # Windows venvs put executables in Scripts/, everywhere else bin/.
 if [ -d .venv/bin ]; then VENV_BIN=".venv/bin"; else VENV_BIN=".venv/Scripts"; fi
@@ -22,7 +26,7 @@ if [ -d .venv/bin ]; then VENV_BIN=".venv/bin"; else VENV_BIN=".venv/Scripts"; f
 if ! chalice_ollama_up; then
   OLLAMA="$(chalice_find_ollama || true)"
   if [ -z "$OLLAMA" ]; then
-    printf "\n  ${RED}Ollama is not installed.${RESET} Run 'bash install.sh' first.\n\n" >&2
+    printf "\n  ${RED}Ollama is not installed.${RESET} Run 'bash scripts/install.sh' first.\n\n" >&2
     exit 1
   fi
   printf "  ${DIM}Starting Ollama…${RESET}\n"
