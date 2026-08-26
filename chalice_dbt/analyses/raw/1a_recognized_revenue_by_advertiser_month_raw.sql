@@ -6,7 +6,7 @@
 -- built straight from the raw seeds. Every correction the warehouse applies has
 -- to be re-applied by hand here, which is the point of keeping both: the CTEs
 -- below are exactly the cleaning the mart layer stops you from having to
--- remember, and each one is a defect documented in the data quality register.
+-- remember, and each one corrects a defect in the source data.
 --
 --   deduped        -- 24 byte-identical rows in delivery_daily would otherwise
 --                     double-count 372,942 impressions and $3,142.57 of revenue
@@ -48,15 +48,15 @@ billing_adjustments as (
 
 ),
 
--- DEFECT 1: exact duplicate delivery rows.
+-- Exact duplicate delivery rows.
 deduped as (
 
     select distinct * from delivery_daily
 
 ),
 
--- DEFECT 3: discount_pct holds fractions (0.1) and percentage points (12.0) in
--- the same column. Values above 1 are percentage points.
+-- discount_pct holds fractions (0.1) and percentage points (12.0) in the same
+-- column. Values above 1 are percentage points.
 line_items as (
 
     select
@@ -151,7 +151,7 @@ discounted as (
 
 ),
 
--- DEFECT 8: 7 advertiser rows are 5 brands. Roll up to the parent.
+-- 7 advertiser rows are 5 brands. Roll up to the parent.
 brand as (
 
     select

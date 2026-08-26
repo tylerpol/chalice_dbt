@@ -93,7 +93,6 @@ order by revenue_at_risk_usd desc, pacing_ratio asc
 --   * LI-5105 has the second-worst ratio (0.577) and $4,883.81 at risk, but
 --     carries no campaign_id, so there is no advertiser and no account owner to
 --     escalate TO. The action here is fixing the mapping, not a delivery call.
---     See defect 6 in the data quality register.
 --   * LI-5001 (1.039), LI-5012 (1.037) and LI-5015 (1.052) are OVER-delivering
 --     against contract. Zero revenue at risk, but LI-5001 alone has served
 --     155,814 impressions beyond its commitment -- unbilled inventory, which is

@@ -26,18 +26,16 @@ all. They only hand off to the real scripts.
 The installer walks six steps with a progress bar and downloads the model
 (~2GB, with Ollama's own live download bar).
 
-**Ollama is installed for you if it is missing** — on macOS, Linux and Windows
-alike. You are asked first, and told what will happen; `--yes` skips the
+**Ollama is installed for you if it is missing** — on macOS and Windows alike. You are asked first, and told what will happen; `--yes` skips the
 question for an unattended run. It needs:
 
-- **Python 3.9+** — already present on macOS (via `xcode-select --install`) and
-  on most Linux distributions. On Windows, `install_windows.ps1` installs it too.
+- **Python 3.9+** — already present on macOS (via `xcode-select --install`). On
+  Windows, `install_windows.ps1` installs it too.
 - **~3GB disk** and **~3GB free RAM** while running
 
 | Platform | Ollama comes from |
 | :--- | :--- |
 | macOS | `Ollama.app` unpacked into `/Applications` — no admin password |
-| Linux | the official `ollama.com/install.sh` (uses sudo) |
 | Windows | winget, falling back to the official silent installer |
 
 If you already have Ollama, yours is used and nothing is installed. Set
