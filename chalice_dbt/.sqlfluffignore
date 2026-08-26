@@ -4,3 +4,7 @@ logs/
 *.md
 # sqlfluff cannot lint macro definition files -- it skips them with a warning
 macros/
+# sqlfluff's duckdb dialect cannot parse GROUPING SETS, which the 1a queries use.
+# The parse failure cascades into spurious violations, so the answer queries are
+# verified by execution instead of linting.
+analyses/
